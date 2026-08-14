@@ -9,3 +9,4 @@ coverage/
 !.env.example
 .superdesign/*
 !.superdesign/design-system.md
+work/
