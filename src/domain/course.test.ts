@@ -133,8 +133,13 @@ describe("course/module domain", () => {
       item("two", "market-shifts", 1),
       item("three", "market-shifts", 2),
     ];
-    const reordered = reorderModuleItems(items, ["three", "one", "two"]);
-    const moved = moveModuleItem(items, "one", 2);
+    const reordered = reorderModuleItems(
+      items,
+      ["three", "one", "two"],
+      "teacher-1",
+      now,
+    );
+    const moved = moveModuleItem(items, "one", 2, "teacher-1", now);
 
     expect(reordered.map((entry) => [entry.id, entry.position])).toEqual([
       ["three", 0],
@@ -142,23 +147,34 @@ describe("course/module domain", () => {
       ["two", 2],
     ]);
     expect(moved.map((entry) => entry.id)).toEqual(["two", "three", "one"]);
+    expect(reordered.every((entry) => entry.revision === 2)).toBe(true);
+    expect(reordered[0].audit.updatedBy).toBe("teacher-1");
     expect(items.map((entry) => entry.id)).toEqual(["one", "two", "three"]);
-    expect(() => reorderModuleItems(items, ["one", "one", "two"])).toThrow(
-      /exactly once/,
-    );
+    expect(() =>
+      reorderModuleItems(items, ["one", "one", "two"], "teacher-1", now),
+    ).toThrow(/exactly once/);
   });
 
   it("enforces release transitions and keeps archived content terminal", () => {
     const draft = item("activity", "market-shifts", 0);
-    expect(transitionReleaseState(draft, "scheduled").state).toBe("scheduled");
-    expect(transitionReleaseState(draft, "published").state).toBe("published");
-    expect(() => transitionReleaseState(draft, "closed")).toThrow(
-      /cannot transition/,
+    expect(
+      transitionReleaseState(draft, "scheduled", "teacher-1", now).state,
+    ).toBe("scheduled");
+    expect(
+      transitionReleaseState(draft, "published", "teacher-1", now),
+    ).toMatchObject({ state: "published", revision: 2 });
+    expect(() =>
+      transitionReleaseState(draft, "closed", "teacher-1", now),
+    ).toThrow(/cannot transition/);
+    const archived = transitionReleaseState(
+      draft,
+      "archived",
+      "teacher-1",
+      now,
     );
-    const archived = transitionReleaseState(draft, "archived");
-    expect(() => transitionReleaseState(archived, "published")).toThrow(
-      /cannot transition/,
-    );
+    expect(() =>
+      transitionReleaseState(archived, "published", "teacher-1", now),
+    ).toThrow(/cannot transition/);
   });
 
   it("gates release by schedule and completion by the declared rule", () => {
@@ -171,6 +187,16 @@ describe("course/module domain", () => {
       isAvailable("published", availability, {
         now: "2026-08-16T10:00:00.000Z",
       }),
+    ).toBe(true);
+    expect(
+      isAvailable(
+        "published",
+        {
+          startsAt: "2026-08-15T10:00:00+09:00",
+          endsAt: "2026-08-15T11:00:00+09:00",
+        },
+        { now: "2026-08-15T01:30:00.000Z" },
+      ),
     ).toBe(true);
     expect(
       isAvailable("hidden", availability, { now: "2026-08-16T10:00:00.000Z" }),
@@ -196,6 +222,9 @@ describe("course/module domain", () => {
     expect(
       isItemComplete({ type: "score", minimumScore: 70 }, { score: 70 }),
     ).toBe(true);
+    expect(
+      isItemComplete({ type: "score", minimumScore: 70 }, { score: Infinity }),
+    ).toBe(false);
   });
 
   it("projects separate teacher and student views from the same model", () => {
@@ -226,6 +255,20 @@ describe("course/module domain", () => {
       canPublish: false,
       canViewEvidence: false,
     });
+    expect(
+      projectCourse(
+        { ...source, course: { ...source.course, status: "draft" } },
+        "student",
+        { now },
+      ).modules,
+    ).toEqual([]);
+    expect(
+      projectCourse(
+        { ...source, course: { ...source.course, status: "archived" } },
+        "student",
+        { now },
+      ).modules,
+    ).toEqual([]);
   });
 
   it("fails closed for cross-course links, unknown prerequisites, and duplicate positions", () => {
@@ -256,5 +299,66 @@ describe("course/module domain", () => {
       ]),
     );
     expect(() => assertValidCourseModel(invalid)).toThrow(/unknown module/);
+  });
+
+  it("rejects module and item prerequisite cycles and invalid thresholds", () => {
+    const source = model();
+    const invalid: CourseModel = {
+      ...source,
+      modules: [
+        {
+          ...source.modules[0],
+          prerequisiteModuleIds: ["second"],
+          completion: { type: "percentage", minimumPercent: Number.NaN },
+        },
+        {
+          ...source.modules[0],
+          id: "second",
+          position: 1,
+          prerequisiteModuleIds: ["market-shifts"],
+        },
+      ],
+      items: [
+        {
+          ...source.items[0],
+          prerequisiteItemIds: ["activity"],
+          completion: { type: "score", minimumScore: Number.POSITIVE_INFINITY },
+        },
+        { ...source.items[1], prerequisiteItemIds: ["notice"] },
+      ],
+    };
+    const issues = validateCourseModel(invalid);
+    expect(issues).toEqual(
+      expect.arrayContaining([
+        "course module prerequisites contain a cycle",
+        "module item prerequisites contain a cycle",
+      ]),
+    );
+    expect(issues.some((issue) => issue.includes("minimumPercent"))).toBe(true);
+    expect(issues.some((issue) => issue.includes("minimumScore"))).toBe(true);
+  });
+
+  it("clones nested input values so later caller mutation cannot bypass revision", () => {
+    const availability: { startsAt: string | null; endsAt: string | null } = {
+      startsAt: null,
+      endsAt: null,
+    };
+    const completion = { type: "score" as const, minimumScore: 70 };
+    const created = createModuleItem({
+      id: "immutable-input",
+      courseId: "econ-10a",
+      moduleId: "market-shifts",
+      type: "assignment",
+      title: "Calculation",
+      position: 0,
+      availability,
+      completion,
+      actorId: "teacher-1",
+      now,
+    });
+    availability.endsAt = "2026-08-20T10:00:00.000Z";
+    completion.minimumScore = 0;
+    expect(created.availability.endsAt).toBeNull();
+    expect(created.completion).toEqual({ type: "score", minimumScore: 70 });
   });
 });

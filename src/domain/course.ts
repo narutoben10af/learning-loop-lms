@@ -203,10 +203,12 @@ function assertNonEmpty(value: string, field: string): void {
   if (!value.trim()) throw new Error(`${field} must not be empty`);
 }
 
-function assertIsoDate(value: string, field: string): void {
-  if (Number.isNaN(Date.parse(value))) {
+function assertIsoDate(value: string, field: string): number {
+  const parsed = Date.parse(value);
+  if (Number.isNaN(parsed)) {
     throw new Error(`${field} must be an ISO date`);
   }
+  return parsed;
 }
 
 function assertRevision(revision: number): void {
@@ -216,11 +218,87 @@ function assertRevision(revision: number): void {
 }
 
 function assertAvailability(window: AvailabilityWindow): void {
-  if (window.startsAt) assertIsoDate(window.startsAt, "availability.startsAt");
-  if (window.endsAt) assertIsoDate(window.endsAt, "availability.endsAt");
-  if (window.startsAt && window.endsAt && window.endsAt <= window.startsAt) {
+  const startsAt = window.startsAt
+    ? assertIsoDate(window.startsAt, "availability.startsAt")
+    : null;
+  const endsAt = window.endsAt
+    ? assertIsoDate(window.endsAt, "availability.endsAt")
+    : null;
+  if (startsAt !== null && endsAt !== null && endsAt <= startsAt) {
     throw new Error("availability.endsAt must be after startsAt");
   }
+}
+
+function assertItemCompletion(
+  rule: ItemCompletionRule,
+  field = "completion",
+): void {
+  if (!rule || typeof rule !== "object") throw new Error(`${field} is invalid`);
+  if (rule.type === "score") {
+    if (!Number.isFinite(rule.minimumScore) || rule.minimumScore < 0) {
+      throw new Error(
+        `${field}.minimumScore must be a finite non-negative number`,
+      );
+    }
+    return;
+  }
+  if (
+    !("view" === rule.type || "submit" === rule.type || "manual" === rule.type)
+  ) {
+    throw new Error(`${field}.type is invalid`);
+  }
+}
+
+function assertModuleCompletion(
+  rule: ModuleCompletionRule,
+  field = "completion",
+): void {
+  if (!rule || typeof rule !== "object") throw new Error(`${field} is invalid`);
+  if (rule.type === "percentage") {
+    if (
+      !Number.isFinite(rule.minimumPercent) ||
+      rule.minimumPercent < 0 ||
+      rule.minimumPercent > 100
+    ) {
+      throw new Error(`${field}.minimumPercent must be between 0 and 100`);
+    }
+    return;
+  }
+  if (rule.type !== "all-items") throw new Error(`${field}.type is invalid`);
+}
+
+function cloneAvailability(window: AvailabilityWindow): AvailabilityWindow {
+  return { startsAt: window.startsAt, endsAt: window.endsAt };
+}
+
+function cloneItemCompletion(rule: ItemCompletionRule): ItemCompletionRule {
+  return rule.type === "score" ? { ...rule } : { type: rule.type };
+}
+
+function cloneModuleCompletion(
+  rule: ModuleCompletionRule,
+): ModuleCompletionRule {
+  return rule.type === "percentage" ? { ...rule } : { type: rule.type };
+}
+
+function hasDependencyCycle(
+  ids: readonly string[],
+  dependencies: (id: string) => readonly string[],
+): boolean {
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const visit = (id: string): boolean => {
+    if (visiting.has(id)) return true;
+    if (visited.has(id)) return false;
+    visiting.add(id);
+    for (const dependency of dependencies(id)) {
+      if (visit(dependency)) return true;
+    }
+    visiting.delete(id);
+    visited.add(id);
+    return false;
+  };
+  return ids.some(visit);
 }
 
 function defaultAvailability(): AvailabilityWindow {
@@ -261,15 +339,23 @@ export function createModule(input: CreateModuleInput): Module {
   }
   const availability = input.availability ?? defaultAvailability();
   assertAvailability(availability);
+  const state = input.state ?? "draft";
+  if (!releaseStates.includes(state)) throw new Error("invalid module state");
+  const prerequisiteModuleIds = [...(input.prerequisiteModuleIds ?? [])];
+  if (prerequisiteModuleIds.includes(input.id)) {
+    throw new Error("module cannot require itself");
+  }
+  const completion = input.completion ?? { type: "all-items" as const };
+  assertModuleCompletion(completion);
   return {
     id: input.id,
     courseId: input.courseId,
     title: input.title,
     position: input.position,
-    state: input.state ?? "draft",
-    availability,
-    prerequisiteModuleIds: [...(input.prerequisiteModuleIds ?? [])],
-    completion: input.completion ?? { type: "all-items" },
+    state,
+    availability: cloneAvailability(availability),
+    prerequisiteModuleIds,
+    completion: cloneModuleCompletion(completion),
     revision: 1,
     audit: audit(input.actorId, input.now),
   };
@@ -288,8 +374,13 @@ export function createModuleItem(input: CreateModuleItemInput): ModuleItem {
   const availability = input.availability ?? defaultAvailability();
   assertAvailability(availability);
   const completion = input.completion ?? { type: "view" as const };
-  if (completion.type === "score" && completion.minimumScore < 0) {
-    throw new Error("completion.minimumScore must not be negative");
+  assertItemCompletion(completion);
+  const state = input.state ?? "draft";
+  if (!releaseStates.includes(state))
+    throw new Error("invalid module item state");
+  const prerequisiteItemIds = [...(input.prerequisiteItemIds ?? [])];
+  if (prerequisiteItemIds.includes(input.id)) {
+    throw new Error("module item cannot require itself");
   }
   return {
     id: input.id,
@@ -298,10 +389,10 @@ export function createModuleItem(input: CreateModuleItemInput): ModuleItem {
     type: input.type,
     title: input.title,
     position: input.position,
-    state: input.state ?? "draft",
-    availability,
-    prerequisiteItemIds: [...(input.prerequisiteItemIds ?? [])],
-    completion,
+    state,
+    availability: cloneAvailability(availability),
+    prerequisiteItemIds,
+    completion: cloneItemCompletion(completion),
     revision: 1,
     revisionId: input.revisionId ?? `${input.id}:r1`,
     audit: audit(input.actorId, input.now),
@@ -326,10 +417,14 @@ export function reviseModuleItem(
   assertAvailability(changes.availability);
   if (
     changes.completion.type === "score" &&
-    changes.completion.minimumScore < 0
+    (!Number.isFinite(changes.completion.minimumScore) ||
+      changes.completion.minimumScore < 0)
   ) {
-    throw new Error("completion.minimumScore must not be negative");
+    throw new Error(
+      "completion.minimumScore must be a finite non-negative number",
+    );
   }
+  assertItemCompletion(changes.completion);
   assertNonEmpty(revisionId, "revisionId");
   assertNonEmpty(actorId, "actorId");
   assertIsoDate(now, "now");
@@ -339,22 +434,39 @@ export function reviseModuleItem(
     ...item,
     ...changes,
     state: "draft",
+    availability: cloneAvailability(changes.availability),
     revision: nextRevision,
     revisionId,
     prerequisiteItemIds: [...changes.prerequisiteItemIds],
+    completion: cloneItemCompletion(changes.completion),
     audit: { ...item.audit, updatedBy: actorId, updatedAt: now },
   };
 }
 
-export function transitionReleaseState<T extends { state: ReleaseState }>(
+type VersionedAudited = {
+  state: ReleaseState;
+  revision: number;
+  audit: AuditFields;
+};
+
+export function transitionReleaseState<T extends VersionedAudited>(
   value: T,
   nextState: ReleaseState,
+  actorId: string,
+  now: string,
 ): T {
   if (value.state === nextState) return value;
   if (!releaseTransitions[value.state].includes(nextState)) {
     throw new Error(`cannot transition ${value.state} to ${nextState}`);
   }
-  return { ...value, state: nextState };
+  assertNonEmpty(actorId, "actorId");
+  assertIsoDate(now, "now");
+  return {
+    ...value,
+    state: nextState,
+    revision: value.revision + 1,
+    audit: { ...value.audit, updatedBy: actorId, updatedAt: now },
+  };
 }
 
 export function orderModuleItems(items: readonly ModuleItem[]): ModuleItem[] {
@@ -366,7 +478,16 @@ export function orderModuleItems(items: readonly ModuleItem[]): ModuleItem[] {
 export function reorderModuleItems(
   items: readonly ModuleItem[],
   orderedIds: readonly ModuleItemId[],
+  actorId: string,
+  now: string,
 ): ModuleItem[] {
+  const courseIds = new Set(items.map((item) => item.courseId));
+  const moduleIds = new Set(items.map((item) => item.moduleId));
+  if (courseIds.size > 1 || moduleIds.size > 1) {
+    throw new Error("reorderModuleItems accepts one course module at a time");
+  }
+  assertNonEmpty(actorId, "actorId");
+  assertIsoDate(now, "now");
   if (
     orderedIds.length !== items.length ||
     new Set(orderedIds).size !== orderedIds.length
@@ -377,7 +498,15 @@ export function reorderModuleItems(
   if (orderedIds.some((id) => !byId.has(id))) {
     throw new Error("orderedIds contains an unknown module item");
   }
-  return orderedIds.map((id, position) => ({ ...byId.get(id)!, position }));
+  return orderedIds.map((id, position) => {
+    const item = byId.get(id)!;
+    return {
+      ...item,
+      position,
+      revision: item.revision + 1,
+      audit: { ...item.audit, updatedBy: actorId, updatedAt: now },
+    };
+  });
 }
 
 /** Accessible Move-To equivalent for drag/reorder UIs. */
@@ -385,6 +514,8 @@ export function moveModuleItem(
   items: readonly ModuleItem[],
   itemId: ModuleItemId,
   targetPosition: number,
+  actorId: string,
+  now: string,
 ): ModuleItem[] {
   const ordered = orderModuleItems(items);
   const currentIndex = ordered.findIndex((item) => item.id === itemId);
@@ -402,6 +533,8 @@ export function moveModuleItem(
   return reorderModuleItems(
     next,
     next.map((item) => item.id),
+    actorId,
+    now,
   );
 }
 
@@ -413,13 +546,18 @@ export function isAvailable(
   completedIds?: ReadonlySet<string>,
 ): boolean {
   if (state !== "published") return false;
-  assertIsoDate(context.now, "context.now");
+  const now = assertIsoDate(context.now, "context.now");
   const completed =
     completedIds ?? context.completedItemIds ?? context.completedModuleIds;
   if (prerequisiteIds.some((id) => !completed?.has(id))) return false;
-  if (availability.startsAt && context.now < availability.startsAt)
-    return false;
-  if (availability.endsAt && context.now >= availability.endsAt) return false;
+  const startsAt = availability.startsAt
+    ? assertIsoDate(availability.startsAt, "availability.startsAt")
+    : null;
+  const endsAt = availability.endsAt
+    ? assertIsoDate(availability.endsAt, "availability.endsAt")
+    : null;
+  if (startsAt !== null && now < startsAt) return false;
+  if (endsAt !== null && now >= endsAt) return false;
   return true;
 }
 
@@ -427,6 +565,7 @@ export function isItemComplete(
   rule: ItemCompletionRule,
   context: CompletionContext,
 ): boolean {
+  assertItemCompletion(rule);
   switch (rule.type) {
     case "view":
       return Boolean(context.viewed);
@@ -436,7 +575,9 @@ export function isItemComplete(
       return Boolean(context.manuallyMarked);
     case "score":
       return (
-        typeof context.score === "number" && context.score >= rule.minimumScore
+        typeof context.score === "number" &&
+        Number.isFinite(context.score) &&
+        context.score >= rule.minimumScore
       );
   }
 }
@@ -451,7 +592,11 @@ export function validateCourseModel(model: CourseModel): string[] {
   try {
     assertNonEmpty(model.course.id, "course.id");
     assertNonEmpty(model.course.title, "course.title");
+    assertNonEmpty(model.course.subject, "course.subject");
     assertRevision(model.course.revision);
+    if (!["draft", "active", "archived"].includes(model.course.status)) {
+      throw new Error("course.status is invalid");
+    }
   } catch (error) {
     issues.push(error instanceof Error ? error.message : "invalid course");
   }
@@ -470,6 +615,10 @@ export function validateCourseModel(model: CourseModel): string[] {
     try {
       assertAvailability(module.availability);
       assertRevision(module.revision);
+      assertModuleCompletion(
+        module.completion,
+        `module ${module.id}.completion`,
+      );
     } catch (error) {
       issues.push(
         error instanceof Error
@@ -486,6 +635,23 @@ export function validateCourseModel(model: CourseModel): string[] {
       if (!modulesById.has(prerequisiteId))
         issues.push(`module ${module.id} requires an unknown module`);
     }
+  }
+
+  const modulePositions = model.modules.map((module) => module.position);
+  const sortedModulePositions = [...modulePositions].sort((a, b) => a - b);
+  if (
+    new Set(modulePositions).size !== modulePositions.length ||
+    sortedModulePositions.some((position, index) => position !== index)
+  ) {
+    issues.push("course modules must have unique contiguous positions");
+  }
+  if (
+    hasDependencyCycle(
+      model.modules.map((module) => module.id),
+      (id) => modulesById.get(id)?.prerequisiteModuleIds ?? [],
+    )
+  ) {
+    issues.push("course module prerequisites contain a cycle");
   }
 
   for (const item of model.items) {
@@ -507,6 +673,7 @@ export function validateCourseModel(model: CourseModel): string[] {
       assertAvailability(item.availability);
       assertRevision(item.revision);
       assertNonEmpty(item.revisionId, `item ${item.id}.revisionId`);
+      assertItemCompletion(item.completion, `item ${item.id}.completion`);
     } catch (error) {
       issues.push(
         error instanceof Error
@@ -523,6 +690,15 @@ export function validateCourseModel(model: CourseModel): string[] {
       if (!itemsById.has(prerequisiteId))
         issues.push(`item ${item.id} requires an unknown item`);
     }
+  }
+
+  if (
+    hasDependencyCycle(
+      model.items.map((item) => item.id),
+      (id) => itemsById.get(id)?.prerequisiteItemIds ?? [],
+    )
+  ) {
+    issues.push("module item prerequisites contain a cycle");
   }
 
   for (const module of model.modules) {
@@ -553,6 +729,7 @@ export function projectCourse(
   assertValidCourseModel(model);
   const visibleModules = orderModules(model.modules).filter((module) => {
     if (role === "teacher") return module.state !== "archived";
+    if (model.course.status !== "active") return false;
     return isAvailable(
       module.state,
       module.availability,
@@ -561,10 +738,10 @@ export function projectCourse(
       context.completedModuleIds,
     );
   });
-  const modules = visibleModules.map((module) => ({
+  const modules = visibleModules.map((module, visibleModulePosition) => ({
     id: module.id,
     title: module.title,
-    position: module.position,
+    position: role === "teacher" ? module.position : visibleModulePosition,
     state: module.state,
     items: orderModuleItems(
       model.items.filter((item) => item.moduleId === module.id),
@@ -580,11 +757,11 @@ export function projectCourse(
               context.completedItemIds,
             ),
       )
-      .map((item) => ({
+      .map((item, visibleItemPosition) => ({
         id: item.id,
         type: item.type,
         title: item.title,
-        position: item.position,
+        position: role === "teacher" ? item.position : visibleItemPosition,
         state: item.state,
         completion: item.completion,
       })),
