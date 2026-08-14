@@ -12,7 +12,7 @@ import {
   evidenceProgress,
   initialActivityState,
   loadActivityState,
-  STORAGE_KEY,
+  saveActivityState,
   type ActivityAction,
   type ActivityState,
   type Confidence,
@@ -121,12 +121,22 @@ function StepProgress({ state }: { state: ActivityState }) {
       {labels.map((label, index) => (
         <li
           key={label}
+          aria-current={
+            index === current && !statuses[index] ? "step" : undefined
+          }
           className={
             statuses[index] ? "complete" : index === current ? "current" : ""
           }
         >
           <span aria-hidden="true">{statuses[index] ? "✓" : index + 1}</span>
           <small>{label}</small>
+          <em className="sr-only">
+            {statuses[index]
+              ? ", complete"
+              : index === current
+                ? ", current step"
+                : ", not started"}
+          </em>
         </li>
       ))}
     </ol>
@@ -480,10 +490,38 @@ function StudentActivity(props: ActivityProps) {
 }
 
 function TeacherEvidence({ state, dispatch }: ActivityProps) {
+  const [filter, setFilter] = useState<
+    "all" | "attention" | "review" | "not-started"
+  >("all");
   const firstPrediction =
     predictionOptions.find((option) => option.value === state.firstPrediction)
       ?.label ?? "No checked prediction";
   const equilibrium = equilibriumForShift(state.supplyShift);
+  const filteredStudents = demoStudents.filter(
+    ([, status, signal], index) =>
+      filter === "all" ||
+      (filter === "attention" &&
+        (index === 0
+          ? state.shiftAttempts > 0 && !state.shiftCorrect
+          : signal === "Demand moved" || signal === "Wrong direction")) ||
+      (filter === "review" &&
+        (index === 0
+          ? state.submitted && state.reviewStatus === "awaiting"
+          : signal === "Ready to review")) ||
+      (filter === "not-started" && status === "Not started"),
+  );
+  const reviewLabel =
+    state.reviewStatus === "returned"
+      ? "Returned"
+      : !state.submitted
+        ? "Not submitted"
+        : state.reviewStatus === "awaiting"
+          ? "Awaiting review"
+          : "Reviewed";
+  const firstShiftLabel =
+    state.firstCheckedShift === null
+      ? "No checked graph state"
+      : `Supply ${state.firstCheckedShift === 1 ? "right" : state.firstCheckedShift === -1 ? "left" : "unchanged"}`;
   return (
     <main id="main-content" className="page-shell teacher-shell">
       <section className="hero teacher-hero">
@@ -496,12 +534,9 @@ function TeacherEvidence({ state, dispatch }: ActivityProps) {
           </p>
         </div>
         <div className="teacher-actions">
-          <button className="button quiet" type="button">
-            Export demo
-          </button>
-          <button className="button primary" type="button">
-            Open review queue
-          </button>
+          <a className="button primary" href="#review-title">
+            Open Maya’s review
+          </a>
         </div>
       </section>
       <section className="evidence-grid" aria-label="Class evidence overview">
@@ -550,7 +585,18 @@ function TeacherEvidence({ state, dispatch }: ActivityProps) {
             </div>
             <label>
               Filter
-              <select defaultValue="all">
+              <select
+                value={filter}
+                onChange={(event) =>
+                  setFilter(
+                    event.target.value as
+                      | "all"
+                      | "attention"
+                      | "review"
+                      | "not-started",
+                  )
+                }
+              >
                 <option value="all">All evidence</option>
                 <option value="attention">Needs attention</option>
                 <option value="review">Ready to review</option>
@@ -562,44 +608,55 @@ function TeacherEvidence({ state, dispatch }: ActivityProps) {
             “Needs attention” describes an activity signal, not the learner.
           </p>
           <div className="student-list">
-            {demoStudents.map(([name, status, signal, confidence], index) => (
-              <button
-                className={index === 0 ? "student-row selected" : "student-row"}
-                type="button"
-                key={name}
-              >
-                <span className="avatar" aria-hidden="true">
-                  {name
-                    .split(" ")
-                    .map((part) => part[0])
-                    .join("")}
-                </span>
-                <span>
-                  <strong>{name}</strong>
-                  <small>
-                    {index === 0
-                      ? state.submitted
-                        ? "Submitted"
-                        : "In progress"
-                      : status}
-                  </small>
-                </span>
-                <span>
-                  <strong>
-                    {index === 0
-                      ? state.shiftCorrect
-                        ? "Supply right"
-                        : "Current local state"
-                      : signal}
-                  </strong>
-                  <small>
-                    {index === 0
-                      ? (state.confidence ?? "No reflection yet")
-                      : confidence}
-                  </small>
-                </span>
-              </button>
-            ))}
+            {filteredStudents.map(([name, status, signal, confidence]) => {
+              const index = demoStudents.findIndex(
+                ([studentName]) => studentName === name,
+              );
+              return (
+                <article
+                  className={
+                    index === 0 ? "student-row selected" : "student-row"
+                  }
+                  key={name}
+                >
+                  <span className="avatar" aria-hidden="true">
+                    {name
+                      .split(" ")
+                      .map((part) => part[0])
+                      .join("")}
+                  </span>
+                  <span>
+                    <strong>{name}</strong>
+                    <small>
+                      {index === 0
+                        ? state.submitted
+                          ? "Submitted"
+                          : "In progress"
+                        : status}
+                    </small>
+                  </span>
+                  <span>
+                    <strong>
+                      {index === 0
+                        ? state.shiftCorrect
+                          ? "Supply right"
+                          : "Current local state"
+                        : signal}
+                    </strong>
+                    <small>
+                      {index === 0
+                        ? (state.confidence ?? "No reflection yet")
+                        : confidence}
+                    </small>
+                  </span>
+                </article>
+              );
+            })}
+            {filteredStudents.length === 0 && (
+              <p className="helper-copy">
+                No students match this evidence filter.
+              </p>
+            )}
           </div>
         </section>
         <section className="review-panel" aria-labelledby="review-title">
@@ -609,9 +666,7 @@ function TeacherEvidence({ state, dispatch }: ActivityProps) {
               <h2 id="review-title">Maya Chen</h2>
             </div>
             <span className={`status-pill ${state.reviewStatus}`}>
-              {state.reviewStatus === "awaiting"
-                ? "Awaiting review"
-                : state.reviewStatus}
+              {reviewLabel}
             </span>
           </div>
           <dl className="evidence-details">
@@ -621,6 +676,10 @@ function TeacherEvidence({ state, dispatch }: ActivityProps) {
                 {firstPrediction} · {state.predictionAttempts} attempt
                 {state.predictionAttempts === 1 ? "" : "s"}
               </dd>
+            </div>
+            <div>
+              <dt>First checked graph</dt>
+              <dd>{firstShiftLabel}</dd>
             </div>
             <div>
               <dt>Final graph action</dt>
@@ -655,6 +714,7 @@ function TeacherEvidence({ state, dispatch }: ActivityProps) {
               <label key={label}>
                 <input
                   type="checkbox"
+                  disabled={!state.submitted}
                   checked={state.teacherRubric[index]}
                   onChange={() =>
                     dispatch({
@@ -672,6 +732,7 @@ function TeacherEvidence({ state, dispatch }: ActivityProps) {
           </label>
           <textarea
             id="teacher-feedback"
+            disabled={!state.submitted}
             rows={4}
             value={state.teacherFeedback}
             onChange={(event) =>
@@ -686,6 +747,7 @@ function TeacherEvidence({ state, dispatch }: ActivityProps) {
             <button
               className="button quiet"
               type="button"
+              disabled={!state.submitted}
               onClick={() => dispatch({ type: "return-for-retry" })}
             >
               Return for another try
@@ -693,6 +755,7 @@ function TeacherEvidence({ state, dispatch }: ActivityProps) {
             <button
               className="button primary"
               type="button"
+              disabled={!state.submitted}
               onClick={() => dispatch({ type: "save-review" })}
             >
               Save reviewed
@@ -716,7 +779,7 @@ export function App() {
     () => loadActivityState(window.localStorage),
   );
   useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    saveActivityState(window.localStorage, state);
   }, [state]);
   return (
     <>

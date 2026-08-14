@@ -330,11 +330,15 @@ h2 {
   width: 1.1rem;
 }
 .button {
+  align-items: center;
   border: 1px solid var(--line);
   border-radius: 0.72rem;
+  display: inline-flex;
   font-weight: 750;
+  justify-content: center;
   min-height: 2.8rem;
   padding: 0.6rem 1rem;
+  text-decoration: none;
 }
 .button.primary {
   background: var(--teal);
@@ -672,7 +676,6 @@ textarea {
   text-align: left;
   width: 100%;
 }
-.student-row:hover,
 .student-row.selected {
   background: var(--teal-soft);
   border-color: #9fc7c0;

@@ -33,6 +33,10 @@ describe("learning-loop prototype", () => {
         name: "How a supply shock changes equilibrium",
       }),
     ).toBeInTheDocument();
+    expect(screen.getByText("Predict").closest("li")).toHaveAttribute(
+      "aria-current",
+      "step",
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Teacher evidence" }));
     expect(
@@ -45,6 +49,11 @@ describe("learning-loop prototype", () => {
         name: "What will happen to equilibrium?",
       }),
     ).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Filter"), {
+      target: { value: "attention" },
+    });
+    expect(screen.getByText("Alex Morgan")).toBeInTheDocument();
+    expect(screen.queryByText("Jordan Lee")).not.toBeInTheDocument();
   });
 
   it("moves completed student evidence into the teacher review view", () => {
