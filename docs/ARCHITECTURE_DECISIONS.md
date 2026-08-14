@@ -2,6 +2,45 @@
 
 Status: Phase 0/Phase 1 planning contracts; no live AI, MCP, or Gemma integration in the first UI vertical slice.
 
+## ADR-004 — Course/module domain as the authoring foundation
+
+Decision: represent a course shell, ordered modules, and module items as
+versioned domain values before building the Module Composer UI. The domain
+owns identity, ordering, release state, availability, prerequisites, and
+completion rules; a future tenant-aware service will own persistence and
+permission enforcement around these values.
+
+- Course, module, and module-item IDs are immutable. Reordering changes only
+  position; editing content creates a new revision and returns that item to
+  `draft` until a teacher releases it again.
+- Module items use the shared taxonomy needed by the composer:
+  `learning-block`, `page`, `resource`, `video`, `assignment`, `quiz`, and
+  `discussion`.
+- Release state is explicit: `draft`, `scheduled`, `published`, `closed`,
+  `hidden`, or terminal `archived`. Availability windows and prerequisite IDs
+  are validated before a model is accepted.
+- `moveModuleItem` is the domain equivalent of an accessible Move-To command;
+  drag-and-drop UIs must call the same reorder contract.
+- Teacher and student projections are separate views over the same model.
+  Teacher projections include authoring/release capabilities and draft items;
+  student projections include only currently published, available items and
+  never expose teacher controls. This is a projection boundary, not production
+  authentication; backend role enforcement remains a later service concern.
+- Completion is evidence-based (`view`, `submit`, `manual`, or threshold
+  `score`) and is not inferred from time spent, streaks, or attention.
+
+### Domain acceptance criteria
+
+1. Identity, revision, audit, lifecycle, and availability invariants fail
+   closed with deterministic validation errors.
+2. Reorder and Move-To preserve all IDs, return contiguous positions, and do
+   not mutate the input collection.
+3. Illegal release transitions and edits to archived items are rejected.
+4. Prerequisite and completion contracts are typed and testable without a
+   database, browser state, or external integration.
+5. Teacher/student projections have explicit capabilities and cannot leak draft
+   or hidden content into the student view.
+
 ## ADR-001 — Domain-first API with an authorised MCP adapter
 
 Decision: build tenant-aware LMS domain services and APIs first. A later Model Context Protocol (MCP) server adapts those same services for authorised agents. It is never a database backdoor, alternate permission system, or route around human approval.
