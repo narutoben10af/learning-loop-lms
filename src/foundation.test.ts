@@ -25,9 +25,20 @@ describe("learning-loop prototype", () => {
     });
   });
 
-  it("labels the role switch as demo-only and separates teacher evidence", () => {
+  it("labels the demo entry and separates student and teacher surfaces", () => {
     render(createElement(App));
-    expect(screen.getByText("Demo and author review only")).toBeInTheDocument();
+    expect(
+      screen.getByText("Author / QA only · student view"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Economics 10A" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Modules" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Private progress.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open activity" }));
     expect(
       screen.getByRole("heading", {
         name: "How a supply shock changes equilibrium",
@@ -38,7 +49,20 @@ describe("learning-loop prototype", () => {
       "step",
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Teacher evidence" }));
+    fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
+    expect(
+      screen.getByText("Author / QA only · teacher view"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: "Build the learning path, in context.",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("How a supply shock changes equilibrium"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Evidence & marking" }));
     expect(
       screen.getByRole("heading", {
         name: "Supply shifts — learning evidence",
@@ -58,6 +82,7 @@ describe("learning-loop prototype", () => {
 
   it("moves completed student evidence into the teacher review view", () => {
     render(createElement(App));
+    fireEvent.click(screen.getByRole("button", { name: "Open activity" }));
     fireEvent.click(screen.getByLabelText("Price falls and quantity rises"));
     fireEvent.click(screen.getByRole("button", { name: "Check prediction" }));
     const supplyControls = screen.getByRole("group", {
@@ -81,7 +106,8 @@ describe("learning-loop prototype", () => {
       screen.getByRole("button", { name: "Submit for teacher review" }),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Teacher evidence" }));
+    fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
+    fireEvent.click(screen.getByRole("button", { name: "Evidence & marking" }));
     expect(
       screen.getByText(/Price falls and quantity rises · 1 attempt/),
     ).toBeInTheDocument();
@@ -93,6 +119,7 @@ describe("learning-loop prototype", () => {
 
   it("offers the same constrained shift through the graph keyboard control", () => {
     render(createElement(App));
+    fireEvent.click(screen.getByRole("button", { name: "Open activity" }));
     const supplyCurve = screen.getByRole("slider", {
       name: "Supply curve position",
     });
@@ -111,6 +138,7 @@ describe("learning-loop prototype", () => {
 
   it("identifies a demand-shift misconception through the same graph control", () => {
     render(createElement(App));
+    fireEvent.click(screen.getByRole("button", { name: "Open activity" }));
     const demandCurve = screen.getByRole("slider", {
       name: "Demand curve position",
     });
@@ -122,5 +150,30 @@ describe("learning-loop prototype", () => {
     expect(
       screen.getByText(/Which side of the market does that affect first/),
     ).toBeInTheDocument();
+  });
+
+  it("shows release state and teacher composer actions without crossing role surfaces", () => {
+    render(createElement(App));
+    expect(screen.getByText("2 items locked")).toBeInTheDocument();
+    expect(
+      screen.getByText("Available from 22 Aug · Your teacher sets release"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Module Composer")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
+    expect(
+      screen.getByRole("button", { name: "+ Add module" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "+ Page" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Open activity" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Page" }));
+    expect(screen.getByDisplayValue("New page")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Publish" }).at(-1)!);
+    expect(
+      screen.getByDisplayValue("New page").closest("li"),
+    ).toHaveTextContent("Published");
   });
 });
