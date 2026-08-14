@@ -149,6 +149,10 @@ describe("course/module domain", () => {
     expect(moved.map((entry) => entry.id)).toEqual(["two", "three", "one"]);
     expect(reordered.every((entry) => entry.revision === 2)).toBe(true);
     expect(reordered[0].audit.updatedBy).toBe("teacher-1");
+    reordered[0].availability.startsAt = "2026-08-20T10:00:00.000Z";
+    reordered[0].prerequisiteItemIds.push("later");
+    expect(items[2].availability.startsAt).toBeNull();
+    expect(items[2].prerequisiteItemIds).toEqual([]);
     expect(items.map((entry) => entry.id)).toEqual(["one", "two", "three"]);
     expect(() =>
       reorderModuleItems(items, ["one", "one", "two"], "teacher-1", now),
@@ -255,6 +259,11 @@ describe("course/module domain", () => {
       canPublish: false,
       canViewEvidence: false,
     });
+    Object.assign(teacher.modules[0].items[0].completion, {
+      type: "score",
+      minimumScore: 90,
+    });
+    expect(source.items[0].completion).toEqual({ type: "view" });
     expect(
       projectCourse(
         { ...source, course: { ...source.course, status: "draft" } },
@@ -360,5 +369,52 @@ describe("course/module domain", () => {
     completion.minimumScore = 0;
     expect(created.availability.endsAt).toBeNull();
     expect(created.completion).toEqual({ type: "score", minimumScore: 70 });
+  });
+
+  it("rejects blank identities and invalid audit chronology", () => {
+    const source = model();
+    const invalid: CourseModel = {
+      ...source,
+      modules: [
+        {
+          ...source.modules[0],
+          title: "",
+          audit: {
+            ...source.modules[0].audit,
+            updatedAt: "not-a-date",
+          },
+        },
+      ],
+      items: [
+        {
+          ...source.items[0],
+          id: "",
+          title: "",
+          audit: {
+            ...source.items[0].audit,
+            updatedAt: "2026-08-14T09:00:00.000Z",
+          },
+        },
+      ],
+      course: {
+        ...source.course,
+        audit: {
+          ...source.course.audit,
+          createdAt: "2026-08-16T09:00:00.000Z",
+          updatedAt: "2026-08-15T09:00:00.000Z",
+        },
+      },
+    };
+    const issues = validateCourseModel(invalid);
+    expect(issues).toEqual(
+      expect.arrayContaining([
+        "module market-shifts.title must not be empty",
+        "item .title must not be empty",
+        "course.audit.updatedAt must not be before createdAt",
+      ]),
+    );
+    expect(
+      issues.some((issue) => issue.includes("module market-shifts.audit")),
+    ).toBe(true);
   });
 });

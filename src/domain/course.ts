@@ -87,6 +87,7 @@ export interface ModuleItem {
   prerequisiteItemIds: ModuleItemId[];
   completion: ItemCompletionRule;
   revision: number;
+  /** Content revision identity; `revision` is the aggregate record version. */
   revisionId: RevisionId;
   audit: AuditFields;
 }
@@ -316,6 +317,16 @@ function audit(actorId: string, now: string): AuditFields {
   };
 }
 
+function assertAudit(value: AuditFields, field: string): void {
+  assertNonEmpty(value.createdBy, `${field}.createdBy`);
+  assertNonEmpty(value.updatedBy, `${field}.updatedBy`);
+  const createdAt = assertIsoDate(value.createdAt, `${field}.createdAt`);
+  const updatedAt = assertIsoDate(value.updatedAt, `${field}.updatedAt`);
+  if (updatedAt < createdAt) {
+    throw new Error(`${field}.updatedAt must not be before createdAt`);
+  }
+}
+
 export function createCourse(input: CreateCourseInput): Course {
   assertNonEmpty(input.id, "course.id");
   assertNonEmpty(input.title, "course.title");
@@ -503,6 +514,9 @@ export function reorderModuleItems(
     return {
       ...item,
       position,
+      availability: cloneAvailability(item.availability),
+      prerequisiteItemIds: [...item.prerequisiteItemIds],
+      completion: cloneItemCompletion(item.completion),
       revision: item.revision + 1,
       audit: { ...item.audit, updatedBy: actorId, updatedAt: now },
     };
@@ -594,6 +608,7 @@ export function validateCourseModel(model: CourseModel): string[] {
     assertNonEmpty(model.course.title, "course.title");
     assertNonEmpty(model.course.subject, "course.subject");
     assertRevision(model.course.revision);
+    assertAudit(model.course.audit, "course.audit");
     if (!["draft", "active", "archived"].includes(model.course.status)) {
       throw new Error("course.status is invalid");
     }
@@ -606,6 +621,20 @@ export function validateCourseModel(model: CourseModel): string[] {
       issues.push(`duplicate module id: ${module.id}`);
     moduleIds.add(module.id);
     modulesById.set(module.id, module);
+    try {
+      assertNonEmpty(module.id, "module.id");
+    } catch (error) {
+      issues.push(
+        error instanceof Error ? error.message : "invalid module identity",
+      );
+    }
+    try {
+      assertNonEmpty(module.title, `module ${module.id}.title`);
+    } catch (error) {
+      issues.push(
+        error instanceof Error ? error.message : "invalid module title",
+      );
+    }
     if (module.courseId !== model.course.id)
       issues.push(`module ${module.id} belongs to another course`);
     if (!releaseStates.includes(module.state))
@@ -619,6 +648,7 @@ export function validateCourseModel(model: CourseModel): string[] {
         module.completion,
         `module ${module.id}.completion`,
       );
+      assertAudit(module.audit, `module ${module.id}.audit`);
     } catch (error) {
       issues.push(
         error instanceof Error
@@ -659,6 +689,20 @@ export function validateCourseModel(model: CourseModel): string[] {
       issues.push(`duplicate module item id: ${item.id}`);
     itemIds.add(item.id);
     itemsById.set(item.id, item);
+    try {
+      assertNonEmpty(item.id, "module item.id");
+    } catch (error) {
+      issues.push(
+        error instanceof Error ? error.message : "invalid item identity",
+      );
+    }
+    try {
+      assertNonEmpty(item.title, `item ${item.id}.title`);
+    } catch (error) {
+      issues.push(
+        error instanceof Error ? error.message : "invalid item title",
+      );
+    }
     if (item.courseId !== model.course.id)
       issues.push(`item ${item.id} belongs to another course`);
     if (!modulesById.has(item.moduleId))
@@ -674,6 +718,7 @@ export function validateCourseModel(model: CourseModel): string[] {
       assertRevision(item.revision);
       assertNonEmpty(item.revisionId, `item ${item.id}.revisionId`);
       assertItemCompletion(item.completion, `item ${item.id}.completion`);
+      assertAudit(item.audit, `item ${item.id}.audit`);
     } catch (error) {
       issues.push(
         error instanceof Error
@@ -763,7 +808,7 @@ export function projectCourse(
         title: item.title,
         position: role === "teacher" ? item.position : visibleItemPosition,
         state: item.state,
-        completion: item.completion,
+        completion: cloneItemCompletion(item.completion),
       })),
   }));
   return {
