@@ -1,8 +1,11 @@
 # Economics Learning Loop — UX Brief
 
-Status: implementation-ready design checkpoint  
-Scope: Phase 0/Phase 1 responsive web prototype for one Economics class  
-Primary outcome: show one complete learning loop from student reasoning to teacher action  
+Status: implementation-ready design checkpoint
+
+Scope: Phase 0/Phase 1 responsive web prototype for one Economics class
+
+Primary outcome: show one complete learning loop from student reasoning to teacher action
+
 Explicitly out of scope: production authentication, live AI, payments, native apps, integrations, parent access, attendance, proctoring, Python execution, and copied exam content
 
 AI assistance principle: any future AI support is optional and transparent. Connecting an authorised agent does not expand tenant, course, role, purpose, retention, or student-data boundaries. The first vertical slice has no live AI provider, MCP server, or Gemma integration.
@@ -32,8 +35,10 @@ Implementation boundary: store only synthetic demo names and activity state loca
 
 ### Activity frame
 
-Title: **How a supply shock changes equilibrium**  
-Learning goal: **Shift a market curve and use the new equilibrium to explain how a change in costs affects price and quantity.**  
+Title: **How a supply shock changes equilibrium**
+
+Learning goal: **Shift a market curve and use the new equilibrium to explain how a change in costs affects price and quantity.**
+
 Estimated time: 8 minutes
 
 The top of the activity shows a five-step loop, labelled with words and numbers:

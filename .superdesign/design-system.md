@@ -1,7 +1,9 @@
 # Learning Loop Design System
 
-Status: Phase 0/Phase 1 visual direction for Superdesign approval  
-Primary style source: Superdesign library prompt `mosaic-grid-architecture-style`  
+Status: Phase 0/Phase 1 visual direction for Superdesign approval
+
+Primary style source: Superdesign library prompt `mosaic-grid-architecture-style`
+
 Adaptation: Technical Minimalist structure tuned for a calm, accessible learning application rather than a landing page
 
 ## Product context
