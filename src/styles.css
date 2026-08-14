@@ -937,13 +937,17 @@ textarea {
   top: 1rem;
 }
 .compact-button {
-  min-height: 2.45rem;
+  min-height: 2.75rem;
   padding: 0.45rem 0.7rem;
 }
 .composer-module-list {
   display: grid;
   gap: 0.35rem;
   margin-top: 1rem;
+}
+.composer-module-row {
+  display: grid;
+  gap: 0.25rem;
 }
 .composer-module {
   align-items: center;
@@ -957,6 +961,7 @@ textarea {
   min-height: 3.4rem;
   padding: 0.55rem;
   text-align: left;
+  width: 100%;
 }
 .composer-module:hover,
 .composer-module.selected {
@@ -978,6 +983,26 @@ textarea {
 .composer-module strong,
 .composer-module small {
   display: block;
+}
+.composer-module-order {
+  align-items: center;
+  display: flex;
+  gap: 0.2rem;
+  justify-content: flex-end;
+}
+.composer-module-order button {
+  background: transparent;
+  border: 0;
+  color: var(--teal);
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+}
+.composer-module-order button:disabled {
+  opacity: 0.3;
+}
+.composer-module-order select,
+.composer-item-actions select {
+  min-height: 2.75rem;
 }
 .composer-module small {
   color: var(--muted);
@@ -1081,9 +1106,19 @@ textarea {
   color: var(--ink);
   font-size: 1rem;
   font-weight: 750;
-  min-height: 2.5rem;
+  min-height: 2.75rem;
   padding: 0.35rem 0.45rem;
   width: 100%;
+}
+.composer-item-main details summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  min-height: 2.75rem;
+}
+.composer-error {
+  color: #a63c3c;
+  display: block;
 }
 .composer-title-input:hover,
 .composer-title-input:focus {

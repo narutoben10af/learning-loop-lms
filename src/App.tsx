@@ -4,6 +4,7 @@ import {
   useState,
   type CSSProperties,
   type Dispatch,
+  type SetStateAction,
 } from "react";
 import {
   activityReducer,
@@ -20,9 +21,11 @@ import {
   type Shift,
 } from "./domain/activity";
 import {
+  assertValidCourseModel,
   createCourse,
   createModule,
   createModuleItem,
+  moveModule,
   moveModuleItem,
   projectCourse,
   reviseModuleItem,
@@ -65,6 +68,7 @@ const demoStudents = [
 ] as const;
 
 const DEMO_NOW = "2026-08-15T09:00:00.000Z";
+const COURSE_STORAGE_KEY = "learning-loop-course-model-v1";
 
 function buildPilotCourseModel(): CourseModel {
   const course = createCourse({
@@ -178,6 +182,22 @@ function buildPilotCourseModel(): CourseModel {
 }
 
 const pilotCourseModel = buildPilotCourseModel();
+
+function loadCourseModel(storage: Storage): CourseModel {
+  const serialized = storage.getItem(COURSE_STORAGE_KEY);
+  if (!serialized) return structuredClone(pilotCourseModel);
+  try {
+    const parsed = JSON.parse(serialized) as CourseModel;
+    assertValidCourseModel(parsed);
+    return parsed;
+  } catch {
+    return structuredClone(pilotCourseModel);
+  }
+}
+
+function saveCourseModel(storage: Storage, course: CourseModel): void {
+  storage.setItem(COURSE_STORAGE_KEY, JSON.stringify(course));
+}
 
 type DemoScreen =
   | "student-course"
@@ -636,24 +656,36 @@ function ReflectionCard({ state, dispatch }: ActivityProps) {
 }
 
 function StudentCourseHome({
+  course,
   state,
   onOpenActivity,
 }: {
+  course: CourseModel;
   state: ActivityState;
   onOpenActivity: () => void;
 }) {
   const progress = evidenceProgress(state);
-  const projection = projectCourse(pilotCourseModel, "student", {
+  const projection = projectCourse(course, "student", {
     now: DEMO_NOW,
-    completedItemIds: new Set(["welcome"]),
+    completedItemIds: new Set(
+      state.submitted ? ["welcome", "supply-shock-activity"] : ["welcome"],
+    ),
   });
   const visibleModules = projection.modules;
-  const rawItemsByModule = new Map(
-    pilotCourseModel.modules.map((module) => [
-      module.id,
-      pilotCourseModel.items.filter((item) => item.moduleId === module.id),
-    ]),
+  const lockedItemCount = visibleModules.reduce(
+    (total, module) => total + module.lockedItemCount,
+    0,
   );
+  const nextRelease = visibleModules
+    .map((module) => module.nextAvailableAt)
+    .filter((value): value is string => value !== null)
+    .sort()[0];
+  const nextReleaseLabel = nextRelease
+    ? new Date(nextRelease).toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+      })
+    : "No scheduled release";
   return (
     <main id="main-content" className="page-shell course-home-shell">
       <nav className="course-nav" aria-label="Student course navigation">
@@ -696,13 +728,17 @@ function StudentCourseHome({
         </div>
         <div>
           <span>Course rhythm</span>
-          <strong>3 modules</strong>
+          <strong>{visibleModules.length} modules available</strong>
           <small>Ordered by your teacher</small>
         </div>
         <div>
           <span>Release status</span>
-          <strong>1 available now</strong>
-          <small>Next module opens 22 Aug</small>
+          <strong>
+            {lockedItemCount === 0
+              ? "All current work open"
+              : `${lockedItemCount} item${lockedItemCount === 1 ? "" : "s"} scheduled`}
+          </strong>
+          <small>Next release {nextReleaseLabel}</small>
         </div>
       </section>
       <section className="module-list" aria-labelledby="modules-title">
@@ -715,8 +751,6 @@ function StudentCourseHome({
         </div>
         <div className="module-stack">
           {visibleModules.map((module, moduleIndex) => {
-            const rawItems = rawItemsByModule.get(module.id) ?? [];
-            const lockedCount = rawItems.length - module.items.length;
             return (
               <article className="module-card" key={module.id}>
                 <div className="module-card-heading">
@@ -737,8 +771,11 @@ function StudentCourseHome({
                 </div>
                 <ol className="module-item-list">
                   {module.items.map((item, itemIndex) => {
-                    const complete = item.id === "welcome";
-                    const current = item.id === "supply-shock-activity";
+                    const complete =
+                      item.id === "welcome" ||
+                      (item.id === "supply-shock-activity" && state.submitted);
+                    const current =
+                      item.id === "supply-shock-activity" && !state.submitted;
                     return (
                       <li
                         className={
@@ -768,27 +805,32 @@ function StudentCourseHome({
                               ? "In progress"
                               : "Ready"}
                         </span>
-                        {current && (
+                        {(current || complete) && (
                           <button
                             className="button primary item-action"
                             type="button"
                             onClick={onOpenActivity}
                           >
-                            Continue
+                            {complete ? "Review" : "Continue"}
                           </button>
                         )}
                       </li>
                     );
                   })}
-                  {lockedCount > 0 && (
+                  {module.lockedItemCount > 0 && (
                     <li className="module-item locked">
                       <span className="item-index" aria-hidden="true">
                         ···
                       </span>
                       <span className="module-item-copy">
-                        <strong>{lockedCount} items locked</strong>
+                        <strong>
+                          {module.lockedItemCount} item
+                          {module.lockedItemCount === 1 ? "" : "s"} locked
+                        </strong>
                         <small>
-                          Available from 22 Aug · Your teacher sets release
+                          {module.nextAvailableAt
+                            ? `Available from ${new Date(module.nextAvailableAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })} · Your teacher sets release`
+                            : "Your teacher sets the release"}
                         </small>
                       </span>
                       <span className="item-status">Scheduled</span>
@@ -881,17 +923,21 @@ function releaseLabel(state: ReleaseState): string {
 }
 
 function TeacherComposer({
+  course,
+  setCourse,
   setScreen,
 }: {
+  course: CourseModel;
+  setCourse: Dispatch<SetStateAction<CourseModel>>;
   setScreen: (screen: DemoScreen) => void;
 }) {
-  const [course, setCourse] = useState<CourseModel>(() =>
-    structuredClone(pilotCourseModel),
-  );
   const [selectedModuleId, setSelectedModuleId] = useState(
     pilotCourseModel.modules[0].id,
   );
   const [nextItemNumber, setNextItemNumber] = useState(1);
+  const [titleDrafts, setTitleDrafts] = useState<Record<string, string>>({});
+  const [titleErrors, setTitleErrors] = useState<Record<string, string>>({});
+  const [orderNotice, setOrderNotice] = useState("");
   const selectedModule =
     course.modules.find((module) => module.id === selectedModuleId) ??
     course.modules[0];
@@ -931,13 +977,32 @@ function TeacherComposer({
       selectedItems.map((item) => (item.id === nextItem.id ? nextItem : item)),
     );
   };
-  const updateItemTitle = (item: ModuleItem, title: string) => {
-    if (item.title === title) return;
+  const commitItemTitle = (item: ModuleItem) => {
+    const draft = titleDrafts[item.id];
+    if (draft === undefined) return;
+    if (!draft.trim()) {
+      setTitleErrors((current) => ({
+        ...current,
+        [item.id]: "A module item needs a title before it can be saved.",
+      }));
+      return;
+    }
+    setTitleDrafts((current) => {
+      const next = { ...current };
+      delete next[item.id];
+      return next;
+    });
+    setTitleErrors((current) => {
+      const next = { ...current };
+      delete next[item.id];
+      return next;
+    });
+    if (draft.trim() === item.title) return;
     updateItem(
       reviseModuleItem(
         item,
         {
-          title,
+          title: draft.trim(),
           type: item.type,
           completion: item.completion,
           availability: item.availability,
@@ -949,6 +1014,7 @@ function TeacherComposer({
     );
   };
   const moveItem = (itemId: string, targetPosition: number) => {
+    const item = selectedItems.find((entry) => entry.id === itemId);
     replaceItems(
       moveModuleItem(
         selectedItems,
@@ -958,6 +1024,27 @@ function TeacherComposer({
         DEMO_NOW,
       ),
     );
+    if (item) {
+      setOrderNotice(`${item.title} moved to position ${targetPosition + 1}.`);
+    }
+  };
+  const moveModuleInCourse = (moduleId: string, targetPosition: number) => {
+    const module = course.modules.find((entry) => entry.id === moduleId);
+    setCourse((current) => ({
+      ...current,
+      modules: moveModule(
+        current.modules,
+        moduleId,
+        targetPosition,
+        "teacher-1",
+        DEMO_NOW,
+      ),
+    }));
+    if (module) {
+      setOrderNotice(
+        `${module.title} moved to position ${targetPosition + 1}.`,
+      );
+    }
   };
   const setItemState = (item: ModuleItem, nextState: ReleaseState) => {
     updateItem(transitionReleaseState(item, nextState, "teacher-1", DEMO_NOW));
@@ -1031,6 +1118,9 @@ function TeacherComposer({
         </div>
       </section>
       <div className="composer-layout">
+        <p className="sr-only" aria-live="polite">
+          {orderNotice}
+        </p>
         <aside className="composer-sidebar" aria-labelledby="module-list-title">
           <div className="panel-heading">
             <div>
@@ -1050,22 +1140,66 @@ function TeacherComposer({
           </p>
           <div className="composer-module-list">
             {course.modules.map((module, index) => (
-              <button
-                className={
-                  module.id === selectedModule.id
-                    ? "composer-module selected"
-                    : "composer-module"
-                }
-                key={module.id}
-                type="button"
-                onClick={() => setSelectedModuleId(module.id)}
-              >
-                <span className="composer-module-number">{index + 1}</span>
-                <span>
-                  <strong>{module.title}</strong>
-                  <small>{releaseLabel(module.state)}</small>
-                </span>
-              </button>
+              <div className="composer-module-row" key={module.id}>
+                <button
+                  className={
+                    module.id === selectedModule.id
+                      ? "composer-module selected"
+                      : "composer-module"
+                  }
+                  type="button"
+                  aria-pressed={module.id === selectedModule.id}
+                  onClick={() => setSelectedModuleId(module.id)}
+                >
+                  <span className="composer-module-number">{index + 1}</span>
+                  <span>
+                    <strong>{module.title}</strong>
+                    <small>{releaseLabel(module.state)}</small>
+                  </span>
+                </button>
+                <div
+                  className="composer-module-order"
+                  aria-label={`Order controls for ${module.title}`}
+                >
+                  <button
+                    type="button"
+                    aria-label={`Move ${module.title} up`}
+                    disabled={index === 0}
+                    onClick={() => moveModuleInCourse(module.id, index - 1)}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Move ${module.title} down`}
+                    disabled={index === course.modules.length - 1}
+                    onClick={() => moveModuleInCourse(module.id, index + 1)}
+                  >
+                    ↓
+                  </button>
+                  <label>
+                    <span className="sr-only">
+                      Move {module.title} to position
+                    </span>
+                    <select
+                      aria-label={`Move ${module.title} to position`}
+                      value={index}
+                      onChange={(event) =>
+                        moveModuleInCourse(
+                          module.id,
+                          Number(event.target.value),
+                        )
+                      }
+                    >
+                      {course.modules.map((_, position) => (
+                        <option key={position} value={position}>
+                          Move to {position + 1}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </div>
             ))}
           </div>
         </aside>
@@ -1158,11 +1292,27 @@ function TeacherComposer({
                   <input
                     id={`item-title-${item.id}`}
                     className="composer-title-input"
-                    value={item.title}
+                    value={titleDrafts[item.id] ?? item.title}
+                    aria-invalid={Boolean(titleErrors[item.id])}
                     onChange={(event) =>
-                      updateItemTitle(item, event.target.value)
+                      setTitleDrafts((current) => ({
+                        ...current,
+                        [item.id]: event.target.value,
+                      }))
                     }
+                    onBlur={() => commitItemTitle(item)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        commitItemTitle(item);
+                      }
+                    }}
                   />
+                  {titleErrors[item.id] && (
+                    <span className="field-note composer-error" role="alert">
+                      {titleErrors[item.id]}
+                    </span>
+                  )}
                   <details>
                     <summary>Availability &amp; prerequisites</summary>
                     <p>
@@ -1216,9 +1366,9 @@ function TeacherComposer({
             ))}
           </ol>
           <div className="composer-release-checklist">
-            <strong>Before release</strong>
-            <span>✓ Student preview checked</span>
-            <span>✓ Availability and prerequisites visible</span>
+            <strong>Release checklist</strong>
+            <span>○ Preview this module as a student</span>
+            <span>○ Confirm availability and prerequisites</span>
             <span>✓ One canonical item identity per block</span>
           </div>
           <p className="privacy-note">
@@ -1544,6 +1694,9 @@ function TeacherEvidence({
 
 export function App() {
   const [screen, setScreen] = useState<DemoScreen>("student-course");
+  const [course, setCourse] = useState<CourseModel>(() =>
+    loadCourseModel(window.localStorage),
+  );
   const [state, dispatch] = useReducer(
     activityReducer,
     initialActivityState,
@@ -1552,11 +1705,15 @@ export function App() {
   useEffect(() => {
     saveActivityState(window.localStorage, state);
   }, [state]);
+  useEffect(() => {
+    saveCourseModel(window.localStorage, course);
+  }, [course]);
   return (
     <>
       <PreviewHeader screen={screen} setScreen={setScreen} />
       {screen === "student-course" && (
         <StudentCourseHome
+          course={course}
           state={state}
           onOpenActivity={() => setScreen("student-activity")}
         />
@@ -1569,7 +1726,11 @@ export function App() {
         />
       )}
       {screen === "teacher-composer" && (
-        <TeacherComposer setScreen={setScreen} />
+        <TeacherComposer
+          course={course}
+          setCourse={setCourse}
+          setScreen={setScreen}
+        />
       )}
       {screen === "teacher-evidence" && (
         <TeacherEvidence
@@ -1580,7 +1741,13 @@ export function App() {
       )}
       <footer>
         <p>Learning Loop LMS · Public pilot prototype · Synthetic data only</p>
-        <button type="button" onClick={() => dispatch({ type: "reset" })}>
+        <button
+          type="button"
+          onClick={() => {
+            dispatch({ type: "reset" });
+            setCourse(structuredClone(pilotCourseModel));
+          }}
+        >
           Reset local demo
         </button>
       </footer>

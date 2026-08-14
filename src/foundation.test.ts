@@ -37,6 +37,9 @@ describe("learning-loop prototype", () => {
       screen.getByRole("heading", { name: "Modules" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Private progress.")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Week 3 · Data response"),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Open activity" }));
     expect(
@@ -106,6 +109,8 @@ describe("learning-loop prototype", () => {
       screen.getByRole("button", { name: "Submit for teacher review" }),
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "Student course" }));
+    expect(screen.getAllByText("Complete")).toHaveLength(2);
     fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
     fireEvent.click(screen.getByRole("button", { name: "Evidence & marking" }));
     expect(
@@ -175,5 +180,52 @@ describe("learning-loop prototype", () => {
     expect(
       screen.getByDisplayValue("New page").closest("li"),
     ).toHaveTextContent("Published");
+  });
+
+  it("keeps authored module changes through student preview and return", () => {
+    render(createElement(App));
+    fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Move Week 1 · Market signals down",
+      }),
+    );
+    expect(
+      screen.getByRole("button", {
+        name: "Move Week 1 · Market signals up",
+      }),
+    ).toBeEnabled();
+    const title = screen.getByRole("textbox", {
+      name: "Title for Start here: reading a market graph",
+    });
+    fireEvent.change(title, { target: { value: "Market graph reading" } });
+    fireEvent.blur(title);
+    expect(
+      screen.getByDisplayValue("Market graph reading"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+    fireEvent.click(screen.getByRole("button", { name: "Preview as student" }));
+    expect(screen.getByText("Market graph reading")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
+    expect(
+      screen.getByDisplayValue("Market graph reading"),
+    ).toBeInTheDocument();
+  });
+
+  it("allows an empty title draft while preserving the canonical saved title", () => {
+    render(createElement(App));
+    fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
+    const title = screen.getByRole("textbox", {
+      name: "Title for Start here: reading a market graph",
+    });
+    fireEvent.change(title, { target: { value: "" } });
+    expect(title).toHaveValue("");
+    fireEvent.blur(title);
+    expect(screen.getByRole("alert")).toHaveTextContent(/needs a title/);
+    fireEvent.click(screen.getByRole("button", { name: "Student course" }));
+    expect(
+      screen.getByText("Start here: reading a market graph"),
+    ).toBeInTheDocument();
   });
 });
