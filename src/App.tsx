@@ -751,6 +751,14 @@ function StudentCourseHome({
         </div>
         <div className="module-stack">
           {visibleModules.map((module, moduleIndex) => {
+            const lockedDescription =
+              module.lockedReason === "prerequisite"
+                ? "Complete the earlier activity to unlock this work."
+                : module.lockedReason === "mixed"
+                  ? `Some work opens ${module.nextAvailableAt ? new Date(module.nextAvailableAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "later"}; some follows an earlier activity.`
+                  : module.nextAvailableAt
+                    ? `Available from ${new Date(module.nextAvailableAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })} · Your teacher sets release`
+                    : "Your teacher sets the release";
             return (
               <article className="module-card" key={module.id}>
                 <div className="module-card-heading">
@@ -827,13 +835,13 @@ function StudentCourseHome({
                           {module.lockedItemCount} item
                           {module.lockedItemCount === 1 ? "" : "s"} locked
                         </strong>
-                        <small>
-                          {module.nextAvailableAt
-                            ? `Available from ${new Date(module.nextAvailableAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })} · Your teacher sets release`
-                            : "Your teacher sets the release"}
-                        </small>
+                        <small>{lockedDescription}</small>
                       </span>
-                      <span className="item-status">Scheduled</span>
+                      <span className="item-status">
+                        {module.lockedReason === "prerequisite"
+                          ? "Locked"
+                          : "Scheduled"}
+                      </span>
                     </li>
                   )}
                 </ol>
@@ -934,7 +942,6 @@ function TeacherComposer({
   const [selectedModuleId, setSelectedModuleId] = useState(
     pilotCourseModel.modules[0].id,
   );
-  const [nextItemNumber, setNextItemNumber] = useState(1);
   const [titleDrafts, setTitleDrafts] = useState<Record<string, string>>({});
   const [titleErrors, setTitleErrors] = useState<Record<string, string>>({});
   const [orderNotice, setOrderNotice] = useState("");
@@ -958,6 +965,12 @@ function TeacherComposer({
     const label =
       composerTypes.find((entry) => entry.type === type)?.label ??
       "Learning block";
+    let nextItemNumber = 1;
+    while (
+      course.items.some((item) => item.id === `composer-item-${nextItemNumber}`)
+    ) {
+      nextItemNumber += 1;
+    }
     const item = createModuleItem({
       id: `composer-item-${nextItemNumber}`,
       courseId: course.course.id,
@@ -969,7 +982,6 @@ function TeacherComposer({
       actorId: "teacher-1",
       now: DEMO_NOW,
     });
-    setNextItemNumber((number) => number + 1);
     replaceItems([...selectedItems, item]);
   };
   const updateItem = (nextItem: ModuleItem) => {

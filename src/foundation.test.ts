@@ -228,4 +228,19 @@ describe("learning-loop prototype", () => {
       screen.getByText("Start here: reading a market graph"),
     ).toBeInTheDocument();
   });
+
+  it("allocates unique item identities after an author-preview round trip", () => {
+    render(createElement(App));
+    fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Page" }));
+    fireEvent.click(screen.getByRole("button", { name: "Preview as student" }));
+    fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Page" }));
+
+    expect(screen.getAllByDisplayValue("New page")).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "Student course" }));
+    expect(
+      screen.getByRole("heading", { name: "Economics 10A" }),
+    ).toBeInTheDocument();
+  });
 });

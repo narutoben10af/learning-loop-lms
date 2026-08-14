@@ -122,6 +122,7 @@ export interface CourseProjection {
     /** Student-safe aggregate for items that are not released yet. */
     lockedItemCount: number;
     nextAvailableAt: string | null;
+    lockedReason: "scheduled" | "prerequisite" | "mixed" | null;
     items: Array<{
       id: ModuleItemId;
       type: ModuleItemType;
@@ -893,6 +894,7 @@ export function projectCourse(
   context: AvailabilityContext,
 ): CourseProjection {
   assertValidCourseModel(model);
+  const nowMs = assertIsoDate(context.now, "context.now");
   const visibleModules = orderModules(model.modules).filter((module) => {
     if (role === "teacher") return module.state !== "archived";
     if (model.course.status !== "active") return false;
@@ -921,27 +923,60 @@ export function projectCourse(
     );
     const lockedItems =
       role === "student"
-        ? orderedItems.filter(
-            (item) =>
-              (item.state === "scheduled" || item.state === "published") &&
-              !isAvailable(
-                item.state,
-                item.availability,
-                context,
-                item.prerequisiteItemIds,
-                context.completedItemIds,
-              ),
-          )
+        ? orderedItems.filter((item) => {
+            if (item.state !== "scheduled" && item.state !== "published") {
+              return false;
+            }
+            const startsAt = item.availability.startsAt
+              ? assertIsoDate(
+                  item.availability.startsAt,
+                  "availability.startsAt",
+                )
+              : null;
+            const endsAt = item.availability.endsAt
+              ? assertIsoDate(item.availability.endsAt, "availability.endsAt")
+              : null;
+            if (endsAt !== null && endsAt <= nowMs) return false;
+            const prerequisiteLocked = item.prerequisiteItemIds.some(
+              (id) => !context.completedItemIds?.has(id),
+            );
+            const futureRelease = startsAt !== null && startsAt > nowMs;
+            return (
+              item.state === "scheduled" || futureRelease || prerequisiteLocked
+            );
+          })
         : [];
     const nextAvailableAt =
       lockedItems
         .map((item) => item.availability.startsAt)
-        .filter((value): value is string => value !== null)
+        .filter(
+          (value): value is string =>
+            value !== null && assertIsoDate(value, "nextAvailableAt") > nowMs,
+        )
         .sort(
           (a, b) =>
             assertIsoDate(a, "nextAvailableAt") -
             assertIsoDate(b, "nextAvailableAt"),
         )[0] ?? null;
+    const hasScheduledLock = lockedItems.some((item) => {
+      const startsAt = item.availability.startsAt
+        ? assertIsoDate(item.availability.startsAt, "availability.startsAt")
+        : null;
+      return (
+        item.state === "scheduled" || (startsAt !== null && startsAt > nowMs)
+      );
+    });
+    const hasPrerequisiteLock = lockedItems.some((item) =>
+      item.prerequisiteItemIds.some((id) => !context.completedItemIds?.has(id)),
+    );
+    const lockedReason: CourseProjection["modules"][number]["lockedReason"] =
+      hasScheduledLock && hasPrerequisiteLock
+        ? "mixed"
+        : hasScheduledLock
+          ? "scheduled"
+          : hasPrerequisiteLock
+            ? "prerequisite"
+            : null;
     return {
       id: module.id,
       title: module.title,
@@ -949,6 +984,7 @@ export function projectCourse(
       state: module.state,
       lockedItemCount: lockedItems.length,
       nextAvailableAt,
+      lockedReason,
       items: visibleItems.map((item, visibleItemPosition) => ({
         id: item.id,
         type: item.type,

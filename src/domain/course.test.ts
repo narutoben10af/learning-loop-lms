@@ -363,11 +363,44 @@ describe("course/module domain", () => {
       actorId: "teacher-1",
       now,
     });
+    const expired = createModuleItem({
+      id: "expired-resource",
+      courseId: source.course.id,
+      moduleId: scheduledModule.id,
+      type: "resource",
+      title: "Expired resource",
+      position: 2,
+      state: "published",
+      availability: {
+        startsAt: "2026-08-10T09:00:00.000Z",
+        endsAt: "2026-08-14T09:00:00.000Z",
+      },
+      actorId: "teacher-1",
+      now,
+    });
+    const prerequisiteLocked = createModuleItem({
+      id: "prerequisite-resource",
+      courseId: source.course.id,
+      moduleId: scheduledModule.id,
+      type: "resource",
+      title: "Prerequisite resource",
+      position: 3,
+      state: "published",
+      prerequisiteItemIds: ["teacher-draft"],
+      actorId: "teacher-1",
+      now,
+    });
     const student = projectCourse(
       {
         ...source,
         modules: [...source.modules, scheduledModule],
-        items: [...source.items, scheduled, hidden],
+        items: [
+          ...source.items,
+          scheduled,
+          hidden,
+          expired,
+          prerequisiteLocked,
+        ],
       },
       "student",
       { now, completedItemIds: new Set(["notice"]) },
@@ -377,11 +410,13 @@ describe("course/module domain", () => {
     );
 
     expect(policy).toMatchObject({
-      lockedItemCount: 1,
+      lockedItemCount: 2,
       nextAvailableAt: "2026-08-22T09:00:00.000Z",
+      lockedReason: "mixed",
       items: [],
     });
     expect(JSON.stringify(policy)).not.toContain("teacher-draft");
+    expect(JSON.stringify(policy)).not.toContain("expired-resource");
   });
 
   it("fails closed for cross-course links, unknown prerequisites, and duplicate positions", () => {
