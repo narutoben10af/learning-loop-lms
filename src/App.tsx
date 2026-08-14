@@ -8,7 +8,7 @@ import {
 import {
   activityReducer,
   canSubmit,
-  equilibriumForShift,
+  equilibriumForShifts,
   evidenceProgress,
   initialActivityState,
   loadActivityState,
@@ -20,6 +20,8 @@ import {
   type PreviewMode,
   type Shift,
 } from "./domain/activity";
+import { EconomicsGraph } from "./graph/EconomicsGraph";
+import { ebikeMarketScenario } from "./graph/scenarios";
 
 const predictionOptions: Array<{ value: Prediction; label: string }> = [
   { value: "price-down-quantity-up", label: "Price falls and quantity rises" },
@@ -212,67 +214,117 @@ function PredictionCard({ state, dispatch }: ActivityProps) {
   );
 }
 
+function CurvePositionControl({
+  label,
+  shift,
+  onChange,
+}: {
+  label: "Demand" | "Supply";
+  shift: Shift;
+  onChange: (shift: Shift) => void;
+}) {
+  return (
+    <fieldset>
+      <legend>{label} position</legend>
+      <div className="shift-controls">
+        {([-1, 0, 1] as Shift[]).map((option) => (
+          <button
+            key={option}
+            type="button"
+            className={
+              shift === option ? "shift-button active" : "shift-button"
+            }
+            aria-pressed={shift === option}
+            onClick={() => onChange(option)}
+          >
+            {option === -1 ? "← Left" : option === 0 ? "Unchanged" : "Right →"}
+          </button>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
 function ShiftCard({ state, dispatch }: ActivityProps) {
-  const equilibrium = equilibriumForShift(state.supplyShift);
-  const shiftLabel =
-    state.supplyShift === 1
-      ? "right"
-      : state.supplyShift === -1
-        ? "left"
-        : "unchanged";
-  const quantities =
-    state.supplyShift === 1
-      ? [60, 80, 100, 120, 140]
-      : state.supplyShift === -1
-        ? [0, 0, 20, 40, 60]
-        : [20, 40, 60, 80, 100];
+  const equilibrium = equilibriumForShifts(
+    state.supplyShift,
+    state.demandShift,
+  );
+  const shiftWord = (shift: Shift) =>
+    shift === 1 ? "right" : shift === -1 ? "left" : "unchanged";
+  const demandQuantities = [100, 80, 60, 40, 20].map((value) =>
+    Math.max(0, value + state.demandShift * 40),
+  );
+  const supplyQuantities = [20, 40, 60, 80, 100].map((value) =>
+    Math.max(0, value + state.supplyShift * 40),
+  );
   return (
     <section className="lesson-card feature-card" aria-labelledby="test-title">
       <div className="card-kicker">03 · Test</div>
       <div className="card-heading-row">
         <div>
-          <h2 id="test-title">Shift supply to test your prediction</h2>
+          <h2 id="test-title">Move a whole curve to test your prediction</h2>
           <p>
-            Choose one constrained position. The visual graph will use this same
-            saved state.
+            Drag either curve left or right. It snaps to one constrained step,
+            recalculates equilibrium, and updates the same controls and table.
           </p>
         </div>
         <button
           className="button quiet"
           type="button"
-          onClick={() => dispatch({ type: "set-supply-shift", shift: 0 })}
+          onClick={() => {
+            dispatch({ type: "set-curve-shift", curveId: "demand", shift: 0 });
+            dispatch({ type: "set-curve-shift", curveId: "supply", shift: 0 });
+          }}
         >
-          Reset
+          Reset graph
         </button>
       </div>
+      <EconomicsGraph
+        scenario={ebikeMarketScenario}
+        state={{
+          shifts: { demand: state.demandShift, supply: state.supplyShift },
+        }}
+        onShift={(curveId, shift) =>
+          dispatch({
+            type: "set-curve-shift",
+            curveId: curveId as "demand" | "supply",
+            shift,
+          })
+        }
+        onCheck={() => dispatch({ type: "check-shift" })}
+      />
       <div className="shift-layout">
         <div>
-          <fieldset>
-            <legend>Supply position</legend>
-            <div className="shift-controls">
-              {([-1, 0, 1] as Shift[]).map((shift) => (
-                <button
-                  key={shift}
-                  type="button"
-                  className={
-                    state.supplyShift === shift
-                      ? "shift-button active"
-                      : "shift-button"
-                  }
-                  aria-pressed={state.supplyShift === shift}
-                  onClick={() => dispatch({ type: "set-supply-shift", shift })}
-                >
-                  {shift === -1
-                    ? "← Shift left"
-                    : shift === 0
-                      ? "Unchanged"
-                      : "Shift right →"}
-                </button>
-              ))}
-            </div>
-          </fieldset>
+          <div className="curve-control-grid">
+            <CurvePositionControl
+              label="Demand"
+              shift={state.demandShift}
+              onChange={(shift) =>
+                dispatch({
+                  type: "set-curve-shift",
+                  curveId: "demand",
+                  shift,
+                })
+              }
+            />
+            <CurvePositionControl
+              label="Supply"
+              shift={state.supplyShift}
+              onChange={(shift) =>
+                dispatch({
+                  type: "set-curve-shift",
+                  curveId: "supply",
+                  shift,
+                })
+              }
+            />
+          </div>
           <div className="equilibrium-callout" aria-live="polite">
-            <span>Supply {shiftLabel}</span>
+            <span>
+              Demand {shiftWord(state.demandShift)} · Supply{" "}
+              {shiftWord(state.supplyShift)}
+            </span>
             <strong>
               Price ${equilibrium.price} · Quantity {equilibrium.quantity}
             </strong>
@@ -300,9 +352,11 @@ function ShiftCard({ state, dispatch }: ActivityProps) {
               <p>
                 {state.shiftCorrect
                   ? "Lower costs increase supply. Equilibrium moves from $6 and 60 rentals to $4 and 80 rentals."
-                  : state.supplyShift === -1
-                    ? "Lower costs make supplying each quantity easier. Would sellers offer less or more?"
-                    : "A lower cost changes the whole supply relationship, so unchanged is not the final model."}
+                  : state.demandShift !== 0
+                    ? "The event changes producers’ costs. Which side of the market does that affect first?"
+                    : state.supplyShift === -1
+                      ? "Lower costs make supplying each quantity easier. Would sellers offer less or more?"
+                      : "A lower cost changes the whole supply relationship, so unchanged is not the final model."}
               </p>
             </div>
           )}
@@ -311,7 +365,7 @@ function ShiftCard({ state, dispatch }: ActivityProps) {
           className="table-wrap"
           tabIndex={0}
           role="region"
-          aria-label="Market schedule after the selected supply shift"
+          aria-label="Market schedule after the selected curve shifts"
         >
           <table>
             <caption>Active weekly market schedule</caption>
@@ -331,8 +385,8 @@ function ShiftCard({ state, dispatch }: ActivityProps) {
                   }
                 >
                   <th scope="row">{price}</th>
-                  <td>{100 - index * 20}</td>
-                  <td>{quantities[index]}</td>
+                  <td>{demandQuantities[index]}</td>
+                  <td>{supplyQuantities[index]}</td>
                 </tr>
               ))}
             </tbody>
@@ -496,7 +550,10 @@ function TeacherEvidence({ state, dispatch }: ActivityProps) {
   const firstPrediction =
     predictionOptions.find((option) => option.value === state.firstPrediction)
       ?.label ?? "No checked prediction";
-  const equilibrium = equilibriumForShift(state.supplyShift);
+  const equilibrium = equilibriumForShifts(
+    state.supplyShift,
+    state.demandShift,
+  );
   const filteredStudents = demoStudents.filter(
     ([, status, signal], index) =>
       filter === "all" ||
@@ -519,9 +576,9 @@ function TeacherEvidence({ state, dispatch }: ActivityProps) {
           ? "Awaiting review"
           : "Reviewed";
   const firstShiftLabel =
-    state.firstCheckedShift === null
+    state.firstCheckedShift === null || state.firstCheckedCurve === null
       ? "No checked graph state"
-      : `Supply ${state.firstCheckedShift === 1 ? "right" : state.firstCheckedShift === -1 ? "left" : "unchanged"}`;
+      : `${state.firstCheckedCurve === "demand" ? "Demand" : "Supply"} ${state.firstCheckedShift === 1 ? "right" : state.firstCheckedShift === -1 ? "left" : "unchanged"}`;
   return (
     <main id="main-content" className="page-shell teacher-shell">
       <section className="hero teacher-hero">
@@ -684,7 +741,13 @@ function TeacherEvidence({ state, dispatch }: ActivityProps) {
             <div>
               <dt>Final graph action</dt>
               <dd>
-                Supply{" "}
+                Demand{" "}
+                {state.demandShift === 1
+                  ? "right"
+                  : state.demandShift === -1
+                    ? "left"
+                    : "unchanged"}{" "}
+                · Supply{" "}
                 {state.supplyShift === 1
                   ? "right"
                   : state.supplyShift === -1

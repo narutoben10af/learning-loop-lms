@@ -13,6 +13,8 @@ export interface ActivityState {
   predictionAttempts: number;
   predictionCorrect: boolean;
   supplyShift: Shift;
+  demandShift: Shift;
+  firstCheckedCurve: "supply" | "demand" | null;
   firstCheckedShift: Shift | null;
   shiftAttempts: number;
   shiftCorrect: boolean;
@@ -32,6 +34,8 @@ export const initialActivityState: ActivityState = {
   predictionAttempts: 0,
   predictionCorrect: false,
   supplyShift: 0,
+  demandShift: 0,
+  firstCheckedCurve: null,
   firstCheckedShift: null,
   shiftAttempts: 0,
   shiftCorrect: false,
@@ -49,6 +53,11 @@ export type ActivityAction =
   | { type: "choose-prediction"; prediction: Prediction }
   | { type: "check-prediction" }
   | { type: "set-supply-shift"; shift: Shift }
+  | {
+      type: "set-curve-shift";
+      curveId: "supply" | "demand";
+      shift: Shift;
+    }
   | { type: "check-shift" }
   | { type: "set-explanation"; explanation: string }
   | { type: "toggle-self-check"; index: 0 | 1 | 2 }
@@ -102,13 +111,25 @@ export function activityReducer(
         supplyShift: action.shift,
         shiftCorrect: false,
       });
-    case "check-shift":
+    case "set-curve-shift":
       return changed({
         ...invalidateSubmission(state),
-        firstCheckedShift: state.firstCheckedShift ?? state.supplyShift,
-        shiftAttempts: state.shiftAttempts + 1,
-        shiftCorrect: state.supplyShift === 1,
+        [action.curveId === "supply" ? "supplyShift" : "demandShift"]:
+          action.shift,
+        shiftCorrect: false,
       });
+    case "check-shift": {
+      const checkedCurve = state.demandShift !== 0 ? "demand" : "supply";
+      const checkedShift =
+        checkedCurve === "demand" ? state.demandShift : state.supplyShift;
+      return changed({
+        ...invalidateSubmission(state),
+        firstCheckedCurve: state.firstCheckedCurve ?? checkedCurve,
+        firstCheckedShift: state.firstCheckedShift ?? checkedShift,
+        shiftAttempts: state.shiftAttempts + 1,
+        shiftCorrect: state.supplyShift === 1 && state.demandShift === 0,
+      });
+    }
     case "set-explanation":
       return changed({
         ...invalidateSubmission(state),
@@ -175,12 +196,17 @@ export function evidenceProgress(state: ActivityState): number {
 }
 
 export function equilibriumForShift(shift: Shift) {
-  if (shift === 1) return { price: 4, quantity: 80 };
-  if (shift === -1) return { price: 8, quantity: 40 };
-  return { price: 6, quantity: 60 };
+  return equilibriumForShifts(shift, 0);
 }
 
-export const STORAGE_KEY = "learning-loop:economics-demo:v1";
+export function equilibriumForShifts(supplyShift: Shift, demandShift: Shift) {
+  const quantity = 60 + 20 * supplyShift + 20 * demandShift;
+  const price = 6 - 2 * supplyShift + 2 * demandShift;
+  return { price, quantity };
+}
+
+export const STORAGE_KEY = "learning-loop:economics-demo:v2";
+export const LEGACY_STORAGE_KEY = "learning-loop:economics-demo:v1";
 
 const predictionValues: Prediction[] = [
   "price-down-quantity-up",
@@ -221,6 +247,10 @@ function parseActivityState(value: unknown): ActivityState | null {
     !nonNegativeInteger(value.predictionAttempts) ||
     typeof value.predictionCorrect !== "boolean" ||
     !([-1, 0, 1] as unknown[]).includes(value.supplyShift) ||
+    !([-1, 0, 1] as unknown[]).includes(value.demandShift) ||
+    !([null, "supply", "demand"] as unknown[]).includes(
+      value.firstCheckedCurve,
+    ) ||
     !(
       value.firstCheckedShift === null ||
       ([-1, 0, 1] as unknown[]).includes(value.firstCheckedShift)
@@ -252,12 +282,24 @@ export function loadActivityState(
   storage: Pick<Storage, "getItem">,
 ): ActivityState {
   try {
-    const raw = storage.getItem(STORAGE_KEY);
+    const currentRaw = storage.getItem(STORAGE_KEY);
+    const raw = currentRaw ?? storage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) return initialActivityState;
     const envelope: unknown = JSON.parse(raw);
-    if (!isRecord(envelope) || envelope.version !== 1) {
+    if (!isRecord(envelope)) {
       return initialActivityState;
     }
+    if (!currentRaw && envelope.version === 1 && isRecord(envelope.state)) {
+      return (
+        parseActivityState({
+          ...envelope.state,
+          demandShift: 0,
+          firstCheckedCurve:
+            envelope.state.firstCheckedShift === null ? null : "supply",
+        }) ?? initialActivityState
+      );
+    }
+    if (envelope.version !== 2) return initialActivityState;
     return parseActivityState(envelope.state) ?? initialActivityState;
   } catch {
     return initialActivityState;
@@ -268,5 +310,5 @@ export function saveActivityState(
   storage: Pick<Storage, "setItem">,
   state: ActivityState,
 ): void {
-  storage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, state }));
+  storage.setItem(STORAGE_KEY, JSON.stringify({ version: 2, state }));
 }
