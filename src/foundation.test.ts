@@ -60,7 +60,12 @@ describe("learning-loop prototype", () => {
     render(createElement(App));
     fireEvent.click(screen.getByLabelText("Price falls and quantity rises"));
     fireEvent.click(screen.getByRole("button", { name: "Check prediction" }));
-    fireEvent.click(screen.getByRole("button", { name: "Shift right →" }));
+    const supplyControls = screen.getByRole("group", {
+      name: "Supply position",
+    });
+    fireEvent.click(
+      supplyControls.querySelectorAll<HTMLButtonElement>("button")[2],
+    );
     fireEvent.click(screen.getByRole("button", { name: "Check this shift" }));
     fireEvent.change(
       screen.getByLabelText(/Explain why lower battery-assembly costs/),
@@ -84,5 +89,38 @@ describe("learning-loop prototype", () => {
       screen.getByText(/Supply right · \$4, 80 rentals/),
     ).toBeInTheDocument();
     expect(screen.getByText(/Lower costs increase supply/)).toBeInTheDocument();
+  });
+
+  it("offers the same constrained shift through the graph keyboard control", () => {
+    render(createElement(App));
+    const supplyCurve = screen.getByRole("slider", {
+      name: "Supply curve position",
+    });
+
+    fireEvent.keyDown(supplyCurve, { key: "ArrowRight" });
+
+    expect(supplyCurve).toHaveAttribute("aria-valuenow", "1");
+    expect(screen.getByText("$4 · 80 rentals")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Right →", pressed: true }),
+    ).toBeInTheDocument();
+
+    fireEvent.keyDown(supplyCurve, { key: "Enter" });
+    expect(screen.getByText("Supply shifted right.")).toBeInTheDocument();
+  });
+
+  it("identifies a demand-shift misconception through the same graph control", () => {
+    render(createElement(App));
+    const demandCurve = screen.getByRole("slider", {
+      name: "Demand curve position",
+    });
+
+    fireEvent.keyDown(demandCurve, { key: "ArrowRight" });
+    fireEvent.keyDown(demandCurve, { key: "Enter" });
+
+    expect(screen.getByText("Revisit the producer clue.")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Which side of the market does that affect first/),
+    ).toBeInTheDocument();
   });
 });

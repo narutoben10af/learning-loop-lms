@@ -3,7 +3,9 @@ import {
   activityReducer,
   canSubmit,
   equilibriumForShift,
+  equilibriumForShifts,
   initialActivityState,
+  LEGACY_STORAGE_KEY,
   loadActivityState,
   saveActivityState,
   STORAGE_KEY,
@@ -30,6 +32,7 @@ describe("activity domain", () => {
     expect(equilibriumForShift(-1)).toEqual({ price: 8, quantity: 40 });
     expect(equilibriumForShift(0)).toEqual({ price: 6, quantity: 60 });
     expect(equilibriumForShift(1)).toEqual({ price: 4, quantity: 80 });
+    expect(equilibriumForShifts(0, 1)).toEqual({ price: 8, quantity: 80 });
   });
 
   it("requires demonstrated evidence before submission", () => {
@@ -90,13 +93,36 @@ describe("activity domain", () => {
     );
   });
 
+  it("migrates the prior supply-only local demo without losing evidence", () => {
+    const legacyState: Record<string, unknown> = {
+      ...initialActivityState,
+      supplyShift: 1 as const,
+      firstCheckedShift: 1 as const,
+      shiftAttempts: 1,
+      shiftCorrect: true,
+    };
+    delete legacyState.demandShift;
+    delete legacyState.firstCheckedCurve;
+    const migrated = loadActivityState({
+      getItem: (key: string) =>
+        key === LEGACY_STORAGE_KEY
+          ? JSON.stringify({ version: 1, state: legacyState })
+          : null,
+    });
+
+    expect(migrated.supplyShift).toBe(1);
+    expect(migrated.demandShift).toBe(0);
+    expect(migrated.firstCheckedCurve).toBe("supply");
+    expect(migrated.shiftCorrect).toBe(true);
+  });
+
   it("rejects valid JSON with malformed fields or a future version", () => {
     const malformed = JSON.stringify({
-      version: 1,
+      version: 2,
       state: { ...initialActivityState, explanation: null },
     });
     const future = JSON.stringify({
-      version: 2,
+      version: 3,
       state: initialActivityState,
     });
     expect(loadActivityState({ getItem: () => malformed })).toEqual(

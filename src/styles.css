@@ -394,6 +394,97 @@ h2 {
   color: var(--muted);
   margin-bottom: 0;
 }
+.economics-graph {
+  margin: 1.25rem 0 1rem;
+}
+.economics-graph figcaption {
+  display: grid;
+  gap: 0.2rem;
+  margin-bottom: 0.65rem;
+}
+.economics-graph figcaption span,
+.graph-instructions {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+.graph-canvas {
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  overflow: hidden;
+  width: 100%;
+}
+.graph-canvas svg {
+  display: block;
+  height: auto;
+  width: 100%;
+}
+.graph-grid line {
+  stroke-width: 1;
+}
+.graph-axes line {
+  stroke-width: 1.5;
+}
+.graph-axes text,
+.graph-legend text {
+  font-size: 12px;
+}
+.graph-axes .axis-title {
+  font-size: 13px;
+  font-weight: 750;
+}
+.equilibrium-banner rect {
+  fill: var(--ink);
+}
+.equilibrium-banner text {
+  fill: var(--lime);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.equilibrium-banner .equilibrium-value {
+  fill: white;
+  font-size: 15px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.equilibrium-guides line {
+  stroke-dasharray: 5 5;
+  stroke-width: 1.5;
+}
+.curve-label-bg {
+  fill: rgb(255 255 255 / 92%);
+  stroke: var(--line);
+}
+.curve-label {
+  font-size: 12px;
+  font-weight: 850;
+  pointer-events: none;
+}
+.curve-hit {
+  cursor: ew-resize;
+  pointer-events: stroke;
+  touch-action: none;
+}
+.curve-hit:focus {
+  outline: none;
+  stroke: rgb(209 157 42 / 18%);
+}
+.curve-handle {
+  pointer-events: none;
+}
+.graph-annotation {
+  pointer-events: none;
+}
+.graph-instructions {
+  margin: 0.55rem 0 0;
+}
+.curve-control-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 1fr 1fr;
+}
 .shift-layout {
   display: grid;
   gap: 1.5rem;
@@ -852,6 +943,9 @@ footer button {
   }
   .shift-controls,
   .confidence-options {
+    grid-template-columns: 1fr;
+  }
+  .curve-control-grid {
     grid-template-columns: 1fr;
   }
   .shift-button,
