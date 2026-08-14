@@ -179,6 +179,21 @@ describe("course/module domain", () => {
     expect(() =>
       transitionReleaseState(archived, "published", "teacher-1", now),
     ).toThrow(/cannot transition/);
+    const transitioned = transitionReleaseState(
+      draft,
+      "published",
+      "teacher-1",
+      now,
+    );
+    transitioned.availability.startsAt = "2099-01-01T00:00:00.000Z";
+    transitioned.prerequisiteItemIds.push("later");
+    Object.assign(transitioned.completion, {
+      type: "score",
+      minimumScore: 0,
+    });
+    expect(draft.availability.startsAt).toBeNull();
+    expect(draft.prerequisiteItemIds).toEqual([]);
+    expect(draft.completion).toEqual({ type: "view" });
   });
 
   it("gates release by schedule and completion by the declared rule", () => {

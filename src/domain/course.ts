@@ -327,6 +327,18 @@ function assertAudit(value: AuditFields, field: string): void {
   }
 }
 
+function assertMonotonicUpdate(
+  previous: string,
+  next: string,
+  field: string,
+): void {
+  if (
+    assertIsoDate(next, field) < assertIsoDate(previous, `${field}.previous`)
+  ) {
+    throw new Error(`${field} must not move backwards`);
+  }
+}
+
 export function createCourse(input: CreateCourseInput): Course {
   assertNonEmpty(input.id, "course.id");
   assertNonEmpty(input.title, "course.title");
@@ -439,6 +451,7 @@ export function reviseModuleItem(
   assertNonEmpty(revisionId, "revisionId");
   assertNonEmpty(actorId, "actorId");
   assertIsoDate(now, "now");
+  assertMonotonicUpdate(item.audit.updatedAt, now, "now");
   const nextRevision = item.revision + 1;
   assertRevision(nextRevision);
   return {
@@ -460,6 +473,25 @@ type VersionedAudited = {
   audit: AuditFields;
 };
 
+function cloneVersionedValue<T extends VersionedAudited>(value: T): T {
+  if ("moduleId" in value) {
+    const item = value as unknown as ModuleItem;
+    return {
+      ...item,
+      availability: cloneAvailability(item.availability),
+      prerequisiteItemIds: [...item.prerequisiteItemIds],
+      completion: cloneItemCompletion(item.completion),
+    } as unknown as T;
+  }
+  const module = value as unknown as Module;
+  return {
+    ...module,
+    availability: cloneAvailability(module.availability),
+    prerequisiteModuleIds: [...module.prerequisiteModuleIds],
+    completion: cloneModuleCompletion(module.completion),
+  } as unknown as T;
+}
+
 export function transitionReleaseState<T extends VersionedAudited>(
   value: T,
   nextState: ReleaseState,
@@ -472,8 +504,9 @@ export function transitionReleaseState<T extends VersionedAudited>(
   }
   assertNonEmpty(actorId, "actorId");
   assertIsoDate(now, "now");
+  assertMonotonicUpdate(value.audit.updatedAt, now, "now");
   return {
-    ...value,
+    ...cloneVersionedValue(value),
     state: nextState,
     revision: value.revision + 1,
     audit: { ...value.audit, updatedBy: actorId, updatedAt: now },
@@ -499,6 +532,15 @@ export function reorderModuleItems(
   }
   assertNonEmpty(actorId, "actorId");
   assertIsoDate(now, "now");
+  if (
+    items.some(
+      (item) =>
+        assertIsoDate(now, "now") <
+        assertIsoDate(item.audit.updatedAt, "audit.updatedAt"),
+    )
+  ) {
+    throw new Error("now must not move an item audit backwards");
+  }
   if (
     orderedIds.length !== items.length ||
     new Set(orderedIds).size !== orderedIds.length
