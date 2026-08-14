@@ -1140,7 +1140,7 @@ textarea {
   justify-items: stretch;
 }
 .composer-item-actions select {
-  min-height: 2.45rem;
+  min-height: 2.75rem;
   padding: 0 0.4rem;
 }
 .composer-release-checklist {
