@@ -59,6 +59,10 @@ export const longLabelMarketScenario: GraphScenario = {
   ...ebikeMarketScenario,
   id: "long-label-resize-fixture",
   title: "Long-label responsive fixture",
+  curves: ebikeMarketScenario.curves.map((curve) => ({
+    ...curve,
+    label: `${curve.label} for community transport journeys`,
+  })),
   xAxis: {
     ...ebikeMarketScenario.xAxis,
     shortLabel: undefined,

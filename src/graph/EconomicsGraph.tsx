@@ -165,7 +165,7 @@ function ValidatedEconomicsGraph({
       <div ref={containerRef} className="graph-canvas">
         <svg
           viewBox={`0 0 ${layout.width} ${layout.height}`}
-          role="img"
+          role="group"
           aria-label={`${scenario.title}. ${scenario.accessibleSummary} Current ${equilibriumText}.${annotationText ? ` ${annotationText}.` : ""}`}
           preserveAspectRatio="xMidYMid meet"
         >
@@ -190,11 +190,11 @@ function ValidatedEconomicsGraph({
 
           <g
             className="equilibrium-banner"
-            transform={`translate(${layout.plot.x},12)`}
+            transform={`translate(${layout.equilibriumBanner.x},${layout.equilibriumBanner.y})`}
           >
             <rect
-              width={Math.min(250, layout.plot.width)}
-              height="46"
+              width={layout.equilibriumBanner.width}
+              height={layout.equilibriumBanner.height}
               rx="10"
             />
             <text x="12" y="17">
@@ -366,7 +366,15 @@ function ValidatedEconomicsGraph({
                 y={curve.label.y}
                 fill={curve.spec.color}
               >
-                {curve.spec.label}
+                {curve.label.lines.map((line, index) => (
+                  <tspan
+                    key={`${line}-${index}`}
+                    x={curve.label.x}
+                    dy={index === 0 ? 0 : curve.label.lineHeight}
+                  >
+                    {line}
+                  </tspan>
+                ))}
               </text>
               {curve.spec.adjustable && (
                 <>
@@ -443,7 +451,15 @@ function ValidatedEconomicsGraph({
                 y={annotation.label.y}
                 fill={scenario.style.axis}
               >
-                {annotation.spec.label}
+                {annotation.label.lines.map((line, index) => (
+                  <tspan
+                    key={`${line}-${index}`}
+                    x={annotation.label.x}
+                    dy={index === 0 ? 0 : annotation.label.lineHeight}
+                  >
+                    {line}
+                  </tspan>
+                ))}
               </text>
             </g>
           ))}
@@ -462,29 +478,38 @@ function ValidatedEconomicsGraph({
             </circle>
           )}
 
-          <g
-            className="graph-legend"
-            transform={`translate(${layout.plot.x},${layout.height - 25})`}
-            aria-hidden="true"
-          >
-            {scenario.curves.map((curve, index) => (
-              <g
-                key={`legend-${curve.id}`}
-                transform={`translate(${index * Math.min(145, layout.plot.width / scenario.curves.length)},0)`}
-              >
-                <line
-                  x1="0"
-                  x2="24"
-                  y1="0"
-                  y2="0"
-                  stroke={curve.color}
-                  strokeWidth="4"
-                />
-                <text x="31" y="4">
-                  {curve.label}
-                </text>
-              </g>
-            ))}
+          <g className="graph-legend" aria-hidden="true">
+            {layout.legend.items.map((item) => {
+              const curve = scenario.curves.find(
+                (candidate) => candidate.id === item.curveId,
+              );
+              return (
+                <g
+                  key={`legend-${item.curveId}`}
+                  transform={`translate(${item.x},${item.y})`}
+                >
+                  <line
+                    x1="0"
+                    x2="24"
+                    y1="0"
+                    y2="0"
+                    stroke={curve?.color}
+                    strokeWidth="4"
+                  />
+                  <text x="31" y="4">
+                    {item.lines.map((line, index) => (
+                      <tspan
+                        key={`${line}-${index}`}
+                        x="31"
+                        dy={index === 0 ? 0 : item.lineHeight}
+                      >
+                        {line}
+                      </tspan>
+                    ))}
+                  </text>
+                </g>
+              );
+            })}
           </g>
         </svg>
       </div>

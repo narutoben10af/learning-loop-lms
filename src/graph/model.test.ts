@@ -26,7 +26,7 @@ describe("data-driven Economics graph model", () => {
         ...ebikeMarketScenario,
         xAxis: { ...ebikeMarketScenario.xAxis, domain: [10, 10] },
       }),
-    ).toContain("Axis domains must increase.");
+    ).toContain("Axis domains must contain finite increasing values.");
     expect(
       validateScenario({
         ...ebikeMarketScenario,
@@ -38,8 +38,41 @@ describe("data-driven Economics graph model", () => {
       }),
     ).toEqual(
       expect.arrayContaining([
-        "Interaction snap values must be unique and increasing.",
+        "Interaction snap values must be finite, unique, and increasing.",
         "Interactive graph hit targets must be at least 44 pixels.",
+      ]),
+    );
+  });
+
+  it("rejects non-finite geometry and false same-curve equilibria", () => {
+    const invalid = validateScenario({
+      ...ebikeMarketScenario,
+      xAxis: {
+        ...ebikeMarketScenario.xAxis,
+        domain: [Number.NaN, 120],
+        preferredTickCount: Number.NaN,
+      },
+      curves: ebikeMarketScenario.curves.map((curve, index) =>
+        index === 0
+          ? {
+              ...curve,
+              equation: {
+                kind: "linear" as const,
+                slope: Number.NaN,
+                intercept: 12,
+              },
+            }
+          : curve,
+      ),
+      equilibrium: { curveIds: ["demand", "demand"], label: "Equilibrium" },
+    });
+
+    expect(invalid).toEqual(
+      expect.arrayContaining([
+        "Axis domains must contain finite increasing values.",
+        "Axis tick counts must be positive integers.",
+        "Linear curve demand requires finite coefficients.",
+        "Equilibrium must reference two distinct curves.",
       ]),
     );
   });
@@ -79,6 +112,7 @@ describe("data-driven Economics graph model", () => {
     expect(layout.plot.x).toBeGreaterThan(0);
     expect(layout.plot.x + layout.plot.width).toBeLessThanOrEqual(width);
     expect(layout.plot.y + layout.plot.height).toBeLessThan(height);
+    expect(layout.plot.height).toBeGreaterThan(120);
     expect(layout.xTicks).toHaveLength(width < 520 ? 5 : 7);
     expect(layout.curves.every((curve) => curve.path.startsWith("M"))).toBe(
       true,
@@ -86,6 +120,29 @@ describe("data-driven Economics graph model", () => {
     if (width === 320) {
       expect(layout.axisTitles.x.lines.length).toBeGreaterThan(1);
       expect(layout.axisTitles.y.lines.length).toBeGreaterThan(1);
+    }
+    expect(layout.axisTitles.x.rect.x).toBeGreaterThanOrEqual(0);
+    expect(
+      layout.axisTitles.x.rect.y + layout.axisTitles.x.rect.height,
+    ).toBeLessThanOrEqual(height);
+    expect(layout.axisTitles.y.rect.x).toBeGreaterThanOrEqual(0);
+    expect(
+      layout.axisTitles.y.rect.y + layout.axisTitles.y.rect.height,
+    ).toBeLessThanOrEqual(height);
+    expect(rectsOverlap(layout.equilibriumBanner, layout.plot, 4)).toBe(false);
+    for (const tick of layout.xTicks) {
+      expect(rectsOverlap(tick.rect, layout.plot)).toBe(false);
+    }
+    for (const tick of layout.yTicks) {
+      expect(rectsOverlap(tick.rect, layout.plot)).toBe(false);
+    }
+    for (const item of layout.legend.items) {
+      expect(item.rect.x).toBeGreaterThanOrEqual(layout.plot.x);
+      expect(item.rect.x + item.rect.width).toBeLessThanOrEqual(
+        layout.plot.x + layout.plot.width,
+      );
+      expect(item.rect.y + item.rect.height).toBeLessThanOrEqual(height);
+      expect(rectsOverlap(item.rect, layout.axisTitles.x.rect, 4)).toBe(false);
     }
     for (const { rect } of layout.labelRects) {
       expect(rect.x).toBeGreaterThanOrEqual(layout.plot.x);
@@ -96,6 +153,34 @@ describe("data-driven Economics graph model", () => {
       expect(rect.y + rect.height).toBeLessThanOrEqual(
         layout.plot.y + layout.plot.height,
       );
+      for (const curve of layout.curves) {
+        expect(
+          rectsOverlap(
+            rect,
+            {
+              x: curve.handle.x - 12,
+              y: curve.handle.y - 12,
+              width: 24,
+              height: 24,
+            },
+            2,
+          ),
+        ).toBe(false);
+      }
+      if (layout.equilibrium) {
+        expect(
+          rectsOverlap(
+            rect,
+            {
+              x: layout.equilibrium.x - 11,
+              y: layout.equilibrium.y - 11,
+              width: 22,
+              height: 22,
+            },
+            2,
+          ),
+        ).toBe(false);
+      }
     }
     for (let first = 0; first < layout.labelRects.length; first += 1) {
       for (
@@ -111,6 +196,44 @@ describe("data-driven Economics graph model", () => {
           ),
         ).toBe(false);
       }
+    }
+  });
+
+  it("wraps long curve and annotation labels into collision-tested bounds", () => {
+    const scenario = {
+      ...priceControlScenario,
+      curves: priceControlScenario.curves.map((curve) => ({
+        ...curve,
+        label: `${curve.label} for sustainably produced community transport journeys`,
+      })),
+      annotations: [
+        {
+          ...priceControlScenario.annotations![0],
+          label:
+            "Maximum inflation-adjusted price permitted for every community journey",
+        },
+      ],
+    };
+    const layout = buildGraphLayout(
+      scenario,
+      { shifts: { demand: 0, supply: 0 } },
+      320,
+      500,
+    );
+
+    expect(layout.curves.every((curve) => curve.label.lines.length > 1)).toBe(
+      true,
+    );
+    expect(layout.annotations[0].label.lines.length).toBeGreaterThan(1);
+    for (const { rect } of layout.labelRects) {
+      expect(rect.x).toBeGreaterThanOrEqual(layout.plot.x);
+      expect(rect.x + rect.width).toBeLessThanOrEqual(
+        layout.plot.x + layout.plot.width,
+      );
+      expect(rect.y).toBeGreaterThanOrEqual(layout.plot.y);
+      expect(rect.y + rect.height).toBeLessThanOrEqual(
+        layout.plot.y + layout.plot.height,
+      );
     }
   });
 
