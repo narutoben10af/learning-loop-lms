@@ -235,6 +235,42 @@ describe("data-driven Economics graph model", () => {
         layout.plot.y + layout.plot.height,
       );
     }
+    for (let first = 0; first < layout.labelRects.length; first += 1) {
+      for (
+        let second = first + 1;
+        second < layout.labelRects.length;
+        second += 1
+      ) {
+        expect(
+          rectsOverlap(
+            layout.labelRects[first].rect,
+            layout.labelRects[second].rect,
+            4,
+          ),
+        ).toBe(false);
+      }
+    }
+  });
+
+  it("reserves SVG gutters for wide endpoint tick labels", () => {
+    const scenario = {
+      ...ebikeMarketScenario,
+      xAxis: {
+        ...ebikeMarketScenario.xAxis,
+        domain: [0, 1_000_000_000] as [number, number],
+      },
+    };
+    const layout = buildGraphLayout(
+      scenario,
+      { shifts: { demand: 0, supply: 0 } },
+      320,
+      430,
+    );
+
+    for (const tick of layout.xTicks) {
+      expect(tick.rect.x).toBeGreaterThanOrEqual(0);
+      expect(tick.rect.x + tick.rect.width).toBeLessThanOrEqual(layout.width);
+    }
   });
 
   it("renders a point-generated PPF without assuming an equilibrium", () => {

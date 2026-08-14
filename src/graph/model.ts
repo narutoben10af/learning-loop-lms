@@ -302,6 +302,8 @@ export function rectsOverlap(first: Rect, second: Rect, gap = 0): boolean {
   );
 }
 
+class LabelPlacementError extends Error {}
+
 function placeLabel(
   plot: Rect,
   width: number,
@@ -335,12 +337,7 @@ function placeLabel(
   }
   const chosen = [...preferred, ...gridCandidates].find(isAvailable);
   if (chosen) return { ...chosen, width, height };
-  return {
-    x: plot.x + 4,
-    y: plot.y + 4,
-    width: Math.min(width, plot.width - 8),
-    height: Math.min(height, plot.height - 8),
-  };
+  throw new LabelPlacementError("No collision-free graph label position.");
 }
 
 function pointsToPath(points: Point[]): string {
@@ -352,7 +349,7 @@ function pointsToPath(points: Point[]): string {
     .join(" ");
 }
 
-export function buildGraphLayout(
+function buildGraphLayoutAtHeight(
   scenario: GraphScenario,
   state: GraphState,
   width: number,
@@ -377,7 +374,15 @@ export function buildGraphLayout(
     ),
   );
   const top = 70;
-  const right = compact ? 18 : 28;
+  const firstXTickWidth = measureText(
+    formatAxisValue(scenario.xAxis, scenario.xAxis.domain[0]),
+    12,
+  );
+  const lastXTickWidth = measureText(
+    formatAxisValue(scenario.xAxis, scenario.xAxis.domain[1]),
+    12,
+  );
+  const right = Math.max(compact ? 18 : 28, lastXTickWidth / 2 + 5);
   const minimumBottom = compact ? 104 : 96;
   const provisionalPlotHeight = safeHeight - top - minimumBottom;
   const yAxisText = compact
@@ -390,7 +395,11 @@ export function buildGraphLayout(
     measureText,
   );
   const yAxisGutter = Math.max(14, yAxisLines.length * 14);
-  const left = Math.max(58, widestYTick + 22 + yAxisGutter);
+  const left = Math.max(
+    58,
+    firstXTickWidth / 2 + 5,
+    widestYTick + 22 + yAxisGutter,
+  );
   const provisionalPlotWidth = safeWidth - left - right;
   const xAxisText = compact
     ? (scenario.xAxis.shortLabel ?? scenario.xAxis.label)
@@ -748,6 +757,35 @@ export function buildGraphLayout(
     legend,
     labelRects,
   };
+}
+
+export function buildGraphLayout(
+  scenario: GraphScenario,
+  state: GraphState,
+  width: number,
+  height: number,
+  measureText: TextMeasure = approximateTextMeasure,
+): GraphLayout {
+  let attemptedHeight = Math.max(360, height);
+  const growthStep = Math.max(
+    120,
+    (scenario.curves.length + (scenario.annotations?.length ?? 0)) * 42,
+  );
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    try {
+      return buildGraphLayoutAtHeight(
+        scenario,
+        state,
+        width,
+        attemptedHeight,
+        measureText,
+      );
+    } catch (error) {
+      if (!(error instanceof LabelPlacementError)) throw error;
+      attemptedHeight += growthStep;
+    }
+  }
+  throw new Error("Graph labels cannot be placed without overlap.");
 }
 
 export function validateScenario(scenario: GraphScenario): string[] {
