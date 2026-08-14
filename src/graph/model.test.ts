@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildGraphLayout,
+  CURVE_HANDLE_HEIGHT,
+  CURVE_HANDLE_WIDTH,
   findIntersection,
   rectsOverlap,
   validateScenario,
@@ -158,10 +160,10 @@ describe("data-driven Economics graph model", () => {
           rectsOverlap(
             rect,
             {
-              x: curve.handle.x - 12,
-              y: curve.handle.y - 12,
-              width: 24,
-              height: 24,
+              x: curve.handle.x - CURVE_HANDLE_WIDTH / 2,
+              y: curve.handle.y - CURVE_HANDLE_HEIGHT / 2,
+              width: CURVE_HANDLE_WIDTH,
+              height: CURVE_HANDLE_HEIGHT,
             },
             2,
           ),

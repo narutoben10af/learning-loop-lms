@@ -56,6 +56,10 @@ export interface GraphScenario {
   };
 }
 
+/** Visual footprint reserved for the labeled curve-adjustment affordance. */
+export const CURVE_HANDLE_WIDTH = 64;
+export const CURVE_HANDLE_HEIGHT = 28;
+
 export interface GraphState {
   shifts: Record<string, Shift>;
 }
@@ -598,10 +602,10 @@ function buildGraphLayoutAtHeight(
   const handleRects = rawCurves
     .filter((curve) => curve.spec.adjustable)
     .map((curve) => ({
-      x: curve.handle.x - 12,
-      y: curve.handle.y - 12,
-      width: 24,
-      height: 24,
+      x: curve.handle.x - CURVE_HANDLE_WIDTH / 2,
+      y: curve.handle.y - CURVE_HANDLE_HEIGHT / 2,
+      width: CURVE_HANDLE_WIDTH,
+      height: CURVE_HANDLE_HEIGHT,
     }));
   const equilibriumRect = equilibrium
     ? {

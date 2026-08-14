@@ -10,6 +10,8 @@ import type { Shift } from "../domain/activity";
 import {
   approximateTextMeasure,
   buildGraphLayout,
+  CURVE_HANDLE_HEIGHT,
+  CURVE_HANDLE_WIDTH,
   formatAxisValue,
   validateScenario,
   type GraphScenario,
@@ -378,16 +380,35 @@ function ValidatedEconomicsGraph({
               </text>
               {curve.spec.adjustable && (
                 <>
-                  <circle
+                  <rect
                     className="curve-handle"
-                    cx={curve.handle.x}
-                    cy={curve.handle.y}
-                    r="10"
+                    x={curve.handle.x - CURVE_HANDLE_WIDTH / 2}
+                    y={curve.handle.y - CURVE_HANDLE_HEIGHT / 2}
+                    width={CURVE_HANDLE_WIDTH}
+                    height={CURVE_HANDLE_HEIGHT}
+                    rx="8"
                     fill={scenario.style.background}
                     stroke={curve.spec.color}
-                    strokeWidth="4"
+                    strokeWidth="3"
                     aria-hidden="true"
                   />
+                  <path
+                    className="curve-handle-grip"
+                    d={`M ${curve.handle.x - 18} ${curve.handle.y - 5} h 10 M ${curve.handle.x - 18} ${curve.handle.y} h 10 M ${curve.handle.x - 18} ${curve.handle.y + 5} h 10`}
+                    stroke={curve.spec.color}
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    aria-hidden="true"
+                  />
+                  <text
+                    className="curve-handle-label"
+                    x={curve.handle.x + 2}
+                    y={curve.handle.y + 4}
+                    fill={curve.spec.color}
+                    aria-hidden="true"
+                  >
+                    Adjust
+                  </text>
                   <path
                     className="curve-hit"
                     d={curve.path}
@@ -396,7 +417,7 @@ function ValidatedEconomicsGraph({
                     strokeWidth={scenario.interaction.minimumHitTarget}
                     role="slider"
                     tabIndex={0}
-                    aria-label={`${curve.spec.label} curve position`}
+                    aria-label={`${curve.spec.label} curve adjustment handle`}
                     aria-valuemin={scenario.interaction.snapValues[0]}
                     aria-valuemax={scenario.interaction.snapValues.at(-1)}
                     aria-valuenow={state.shifts[curve.spec.id] ?? 0}
@@ -514,9 +535,11 @@ function ValidatedEconomicsGraph({
         </svg>
       </div>
       <p className="graph-instructions">
-        Drag a whole curve left or right. Keyboard: focus a curve, use
-        Left/Right Arrow, Home to reset, and Enter or Space to check. The
-        controls and schedule below perform the same action.
+        Use the labeled Adjust handle to drag a whole curve left or right.
+        Keyboard: focus a curve adjustment handle, use Left/Right Arrow, Home to
+        reset, and Enter or Space to check. The amber point is the only
+        market-result point; the controls and schedule below perform the same
+        adjustment.
       </p>
       <p className="sr-only" aria-live="polite">
         {scenario.curves
