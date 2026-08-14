@@ -21,6 +21,6 @@ Keep immutable scenario definitions separate from learner state. All demo record
 
 ## Public prototype deployment
 
-GitHub Pages deploys only after the `CI` workflow succeeds on `main` (or a maintainer explicitly dispatches the deployment workflow). The build uses `VITE_BASE_PATH=/learning-loop-lms/` so assets resolve under the repository Pages path. Local development keeps `/` as its base.
+GitHub Pages deploys only after the `CI` workflow succeeds on `main`. The unprivileged build job checks out that exact green commit and uses `VITE_BASE_PATH=/learning-loop-lms/` so assets resolve under the repository Pages path. A separate minimal job receives Pages/OIDC write permissions and deploys only the uploaded static artifact. Local development keeps `/` as its base.
 
 The Pages site is a static evaluation surface, not a production environment. It must not receive real student data, secrets, provider keys, analytics scripts, backend credentials, or claims of production authentication/cloud persistence.
