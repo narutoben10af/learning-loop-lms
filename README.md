@@ -3,6 +3,8 @@
 [![CI](https://github.com/narutoben10af/learning-loop-lms/actions/workflows/ci.yml/badge.svg)](https://github.com/narutoben10af/learning-loop-lms/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
+[Open the public synthetic-data prototype](https://narutoben10af.github.io/learning-loop-lms/).
+
 Learning Loop is an experimental, learning-first LMS pilot for one Economics class. Its first vertical slice connects a student's prediction, constrained graph interaction, explanation, and reflection to a teacher's view of the same evidence and a human marking loop.
 
 > **Prototype warning:** this repository is not production ready. It currently uses synthetic demo data and local browser storage. It does not provide production authentication, tenant isolation, secure enrolment, server persistence, or a student-data processing agreement.
@@ -61,6 +63,8 @@ npm run typecheck
 npm test
 npm run build
 ```
+
+The public demo is a static build deployed from a green `main` commit through GitHub Pages. It has the same prototype warning and local-only synthetic state as the local build; deployment does not add authentication, a backend, or cloud persistence.
 
 ## Privacy and security
 
