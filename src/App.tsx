@@ -4,6 +4,7 @@ import {
   useState,
   type CSSProperties,
   type Dispatch,
+  type SetStateAction,
 } from "react";
 import {
   activityReducer,
@@ -17,9 +18,25 @@ import {
   type ActivityState,
   type Confidence,
   type Prediction,
-  type PreviewMode,
   type Shift,
 } from "./domain/activity";
+import {
+  assertValidCourseModel,
+  createCourse,
+  createModule,
+  createModuleItem,
+  moveModule,
+  moveModuleItem,
+  projectCourse,
+  reviseModuleItem,
+  transitionReleaseState,
+  type CourseModel,
+  type DomainRole,
+  type Module,
+  type ModuleItem,
+  type ModuleItemType,
+  type ReleaseState,
+} from "./domain/course";
 import { EconomicsGraph } from "./graph/EconomicsGraph";
 import { ebikeMarketScenario } from "./graph/scenarios";
 
@@ -50,18 +67,157 @@ const demoStudents = [
   ["Taylor Kim", "Not started", "No evidence yet", "—"],
 ] as const;
 
+const DEMO_NOW = "2026-08-15T09:00:00.000Z";
+const COURSE_STORAGE_KEY = "learning-loop-course-model-v1";
+
+function buildPilotCourseModel(): CourseModel {
+  const course = createCourse({
+    id: "econ-10a",
+    title: "Economics 10A",
+    subject: "Economics",
+    actorId: "teacher-1",
+    now: DEMO_NOW,
+  });
+  const modules: Module[] = [
+    createModule({
+      id: "market-signals",
+      courseId: course.id,
+      title: "Week 1 · Market signals",
+      position: 0,
+      state: "published",
+      actorId: "teacher-1",
+      now: DEMO_NOW,
+    }),
+    createModule({
+      id: "policy-choices",
+      courseId: course.id,
+      title: "Week 2 · Policy choices",
+      position: 1,
+      state: "published",
+      actorId: "teacher-1",
+      now: DEMO_NOW,
+    }),
+    createModule({
+      id: "data-response",
+      courseId: course.id,
+      title: "Week 3 · Data response",
+      position: 2,
+      state: "hidden",
+      actorId: "teacher-1",
+      now: DEMO_NOW,
+    }),
+  ];
+  const items: ModuleItem[] = [
+    createModuleItem({
+      id: "welcome",
+      courseId: course.id,
+      moduleId: modules[0].id,
+      type: "page",
+      title: "Start here: reading a market graph",
+      position: 0,
+      state: "published",
+      completion: { type: "view" },
+      actorId: "teacher-1",
+      now: DEMO_NOW,
+    }),
+    createModuleItem({
+      id: "supply-shock-activity",
+      courseId: course.id,
+      moduleId: modules[0].id,
+      type: "learning-block",
+      title: "How a supply shock changes equilibrium",
+      position: 1,
+      state: "published",
+      prerequisiteItemIds: ["welcome"],
+      completion: { type: "submit" },
+      actorId: "teacher-1",
+      now: DEMO_NOW,
+    }),
+    createModuleItem({
+      id: "price-controls-resource",
+      courseId: course.id,
+      moduleId: modules[1].id,
+      type: "resource",
+      title: "Price controls: a guided data reading",
+      position: 0,
+      state: "published",
+      availability: {
+        startsAt: "2026-08-22T09:00:00.000Z",
+        endsAt: null,
+      },
+      completion: { type: "view" },
+      actorId: "teacher-1",
+      now: DEMO_NOW,
+    }),
+    createModuleItem({
+      id: "policy-quiz",
+      courseId: course.id,
+      moduleId: modules[1].id,
+      type: "quiz",
+      title: "Policy choices: quick check",
+      position: 1,
+      state: "published",
+      availability: {
+        startsAt: "2026-08-22T09:00:00.000Z",
+        endsAt: null,
+      },
+      completion: { type: "submit" },
+      actorId: "teacher-1",
+      now: DEMO_NOW,
+    }),
+    createModuleItem({
+      id: "data-response",
+      courseId: course.id,
+      moduleId: modules[2].id,
+      type: "assignment",
+      title: "Data response: household budgets",
+      position: 0,
+      state: "hidden",
+      completion: { type: "submit" },
+      actorId: "teacher-1",
+      now: DEMO_NOW,
+    }),
+  ];
+  return { course: { ...course, status: "active" }, modules, items };
+}
+
+const pilotCourseModel = buildPilotCourseModel();
+
+function loadCourseModel(storage: Storage): CourseModel {
+  const serialized = storage.getItem(COURSE_STORAGE_KEY);
+  if (!serialized) return structuredClone(pilotCourseModel);
+  try {
+    const parsed = JSON.parse(serialized) as CourseModel;
+    assertValidCourseModel(parsed);
+    return parsed;
+  } catch {
+    return structuredClone(pilotCourseModel);
+  }
+}
+
+function saveCourseModel(storage: Storage, course: CourseModel): void {
+  storage.setItem(COURSE_STORAGE_KEY, JSON.stringify(course));
+}
+
+type DemoScreen =
+  | "student-course"
+  | "student-activity"
+  | "teacher-composer"
+  | "teacher-evidence";
+
 type ActivityProps = {
   state: ActivityState;
   dispatch: Dispatch<ActivityAction>;
 };
 
 function PreviewHeader({
-  mode,
-  setMode,
+  screen,
+  setScreen,
 }: {
-  mode: PreviewMode;
-  setMode: (mode: PreviewMode) => void;
+  screen: DemoScreen;
+  setScreen: (screen: DemoScreen) => void;
 }) {
+  const role: DomainRole = screen.startsWith("teacher") ? "teacher" : "student";
   return (
     <header className="app-header">
       <a className="brand" href="#main-content" aria-label="Learning Loop home">
@@ -75,32 +231,33 @@ function PreviewHeader({
       </a>
       <div className="preview-wrap">
         <div className="preview-label">
-          <strong>Preview as</strong>
-          <span>Demo and author review only</span>
+          <strong>Demo entry</strong>
+          <span>Author / QA only · {role} view</span>
         </div>
         <div
           className="segmented"
           role="group"
-          aria-label="Preview the demo experience as"
+          aria-label="Demo entry point for author and QA review"
         >
           <button
             type="button"
-            aria-pressed={mode === "student"}
-            onClick={() => setMode("student")}
+            aria-pressed={role === "student"}
+            onClick={() => setScreen("student-course")}
           >
-            Student activity
+            Student course
           </button>
           <button
             type="button"
-            aria-pressed={mode === "teacher"}
-            onClick={() => setMode("teacher")}
+            aria-pressed={role === "teacher"}
+            onClick={() => setScreen("teacher-composer")}
           >
-            Teacher evidence
+            Teacher workspace
           </button>
         </div>
         <p className="preview-note">
-          Student completes the activity · Teacher reviews evidence and marks
-          it. Production accounts never show this switch.
+          Student opens course modules and completes work · Teacher authors,
+          previews, and reviews evidence. Production accounts never show this
+          demo entry.
         </p>
       </div>
     </header>
@@ -498,9 +655,223 @@ function ReflectionCard({ state, dispatch }: ActivityProps) {
   );
 }
 
-function StudentActivity(props: ActivityProps) {
+function StudentCourseHome({
+  course,
+  state,
+  onOpenActivity,
+}: {
+  course: CourseModel;
+  state: ActivityState;
+  onOpenActivity: () => void;
+}) {
+  const progress = evidenceProgress(state);
+  const projection = projectCourse(course, "student", {
+    now: DEMO_NOW,
+    completedItemIds: new Set(
+      state.submitted ? ["welcome", "supply-shock-activity"] : ["welcome"],
+    ),
+  });
+  const visibleModules = projection.modules;
+  const lockedItemCount = visibleModules.reduce(
+    (total, module) => total + module.lockedItemCount,
+    0,
+  );
+  const nextRelease = visibleModules
+    .map((module) => module.nextAvailableAt)
+    .filter((value): value is string => value !== null)
+    .sort()[0];
+  const nextReleaseLabel = nextRelease
+    ? new Date(nextRelease).toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+      })
+    : "No scheduled release";
+  return (
+    <main id="main-content" className="page-shell course-home-shell">
+      <nav className="course-nav" aria-label="Student course navigation">
+        <span className="course-nav-title">Economics 10A</span>
+        <span className="course-nav-links">
+          <span className="course-nav-current" aria-current="page">
+            Course home
+          </span>
+          <button type="button" onClick={onOpenActivity}>
+            Open activity
+          </button>
+        </span>
+      </nav>
+      <section className="course-hero">
+        <div>
+          <p className="eyebrow">Student course · Microeconomics</p>
+          <h1>Economics 10A</h1>
+          <p className="hero-copy">
+            A clear path through market signals, policy choices, and data
+            response. Your next step is ready when you are.
+          </p>
+        </div>
+        <aside
+          className="course-progress-card"
+          aria-label="Private course progress"
+        >
+          <span>Private mastery progress</span>
+          <strong>{state.submitted ? "1 of 3" : "In progress"}</strong>
+          <div className="progress-track" aria-hidden="true">
+            <span style={{ width: `${Math.max(20, progress * 20)}%` }} />
+          </div>
+          <small>Evidence, not time spent or a public ranking.</small>
+        </aside>
+      </section>
+      <section className="course-overview" aria-label="Course overview">
+        <div>
+          <span>Current focus</span>
+          <strong>Market equilibrium</strong>
+          <small>1 learning activity · 8 minutes</small>
+        </div>
+        <div>
+          <span>Course rhythm</span>
+          <strong>{visibleModules.length} modules available</strong>
+          <small>Ordered by your teacher</small>
+        </div>
+        <div>
+          <span>Release status</span>
+          <strong>
+            {lockedItemCount === 0
+              ? "All current work open"
+              : `${lockedItemCount} item${lockedItemCount === 1 ? "" : "s"} scheduled`}
+          </strong>
+          <small>Next release {nextReleaseLabel}</small>
+        </div>
+      </section>
+      <section className="module-list" aria-labelledby="modules-title">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">Course map</p>
+            <h2 id="modules-title">Modules</h2>
+          </div>
+          <span className="section-note">Your teacher controls release</span>
+        </div>
+        <div className="module-stack">
+          {visibleModules.map((module, moduleIndex) => {
+            const lockedDescription =
+              module.lockedReason === "prerequisite"
+                ? "Complete the earlier activity to unlock this work."
+                : module.lockedReason === "mixed"
+                  ? `Some work opens ${module.nextAvailableAt ? new Date(module.nextAvailableAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "later"}; some follows an earlier activity.`
+                  : module.nextAvailableAt
+                    ? `Available from ${new Date(module.nextAvailableAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })} · Your teacher sets release`
+                    : "Your teacher sets the release";
+            return (
+              <article className="module-card" key={module.id}>
+                <div className="module-card-heading">
+                  <div className="module-number" aria-hidden="true">
+                    {String(moduleIndex + 1).padStart(2, "0")}
+                  </div>
+                  <div>
+                    <div className="module-title-row">
+                      <h3>{module.title}</h3>
+                      <span className="state-pill published">Available</span>
+                    </div>
+                    <p>
+                      {moduleIndex === 0
+                        ? "Build the graph language you will use in every later activity."
+                        : "Teacher-prepared work will appear here when released."}
+                    </p>
+                  </div>
+                </div>
+                <ol className="module-item-list">
+                  {module.items.map((item, itemIndex) => {
+                    const complete =
+                      item.id === "welcome" ||
+                      (item.id === "supply-shock-activity" && state.submitted);
+                    const current =
+                      item.id === "supply-shock-activity" && !state.submitted;
+                    return (
+                      <li
+                        className={
+                          current ? "module-item current" : "module-item"
+                        }
+                        key={item.id}
+                      >
+                        <span className="item-index" aria-hidden="true">
+                          {complete ? "✓" : itemIndex + 1}
+                        </span>
+                        <span className="module-item-copy">
+                          <strong>{item.title}</strong>
+                          <small>
+                            {item.type === "learning-block"
+                              ? "Interactive activity"
+                              : "Reading page"}
+                          </small>
+                        </span>
+                        <span
+                          className={
+                            complete ? "item-status complete" : "item-status"
+                          }
+                        >
+                          {complete
+                            ? "Complete"
+                            : current
+                              ? "In progress"
+                              : "Ready"}
+                        </span>
+                        {(current || complete) && (
+                          <button
+                            className="button primary item-action"
+                            type="button"
+                            onClick={onOpenActivity}
+                          >
+                            {complete ? "Review" : "Continue"}
+                          </button>
+                        )}
+                      </li>
+                    );
+                  })}
+                  {module.lockedItemCount > 0 && (
+                    <li className="module-item locked">
+                      <span className="item-index" aria-hidden="true">
+                        ···
+                      </span>
+                      <span className="module-item-copy">
+                        <strong>
+                          {module.lockedItemCount} item
+                          {module.lockedItemCount === 1 ? "" : "s"} locked
+                        </strong>
+                        <small>{lockedDescription}</small>
+                      </span>
+                      <span className="item-status">
+                        {module.lockedReason === "prerequisite"
+                          ? "Locked"
+                          : "Scheduled"}
+                      </span>
+                    </li>
+                  )}
+                </ol>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+      <p className="privacy-note">
+        <strong>Private progress.</strong> This pilot stores synthetic demo
+        state on this device only. It is learning evidence, not attention
+        tracking.
+      </p>
+    </main>
+  );
+}
+
+function StudentActivity({
+  state,
+  dispatch,
+  onBack,
+}: ActivityProps & { onBack: () => void }) {
   return (
     <main id="main-content" className="page-shell">
+      <nav className="course-nav" aria-label="Student course navigation">
+        <button type="button" onClick={onBack}>
+          ← Economics 10A
+        </button>
+        <span>Module 1 · Market signals</span>
+      </nav>
       <section className="hero student-hero">
         <div>
           <p className="eyebrow">Microeconomics · Market equilibrium</p>
@@ -516,7 +887,7 @@ function StudentActivity(props: ActivityProps) {
           <span>Saved locally</span>
         </div>
       </section>
-      <StepProgress state={props.state} />
+      <StepProgress state={state} />
       <section
         className="lesson-card notice-card"
         aria-labelledby="notice-title"
@@ -535,15 +906,498 @@ function StudentActivity(props: ActivityProps) {
           </p>
         </div>
       </section>
-      <PredictionCard {...props} />
-      <ShiftCard {...props} />
-      <ExplanationCard {...props} />
-      <ReflectionCard {...props} />
+      <PredictionCard state={state} dispatch={dispatch} />
+      <ShiftCard state={state} dispatch={dispatch} />
+      <ExplanationCard state={state} dispatch={dispatch} />
+      <ReflectionCard state={state} dispatch={dispatch} />
     </main>
   );
 }
 
-function TeacherEvidence({ state, dispatch }: ActivityProps) {
+const composerTypes: Array<{ type: ModuleItemType; label: string }> = [
+  { type: "learning-block", label: "Learning block" },
+  { type: "page", label: "Page" },
+  { type: "resource", label: "Resource" },
+  { type: "video", label: "Video" },
+  { type: "assignment", label: "Assignment" },
+  { type: "quiz", label: "Quiz" },
+  { type: "discussion", label: "Discussion" },
+];
+
+function releaseLabel(state: ReleaseState): string {
+  return state === "scheduled"
+    ? "Scheduled"
+    : state.charAt(0).toUpperCase() + state.slice(1);
+}
+
+function TeacherComposer({
+  course,
+  setCourse,
+  setScreen,
+}: {
+  course: CourseModel;
+  setCourse: Dispatch<SetStateAction<CourseModel>>;
+  setScreen: (screen: DemoScreen) => void;
+}) {
+  const [selectedModuleId, setSelectedModuleId] = useState(
+    pilotCourseModel.modules[0].id,
+  );
+  const [titleDrafts, setTitleDrafts] = useState<Record<string, string>>({});
+  const [titleErrors, setTitleErrors] = useState<Record<string, string>>({});
+  const [orderNotice, setOrderNotice] = useState("");
+  const selectedModule =
+    course.modules.find((module) => module.id === selectedModuleId) ??
+    course.modules[0];
+  const selectedItems = course.items
+    .filter((item) => item.moduleId === selectedModule.id)
+    .sort((a, b) => a.position - b.position);
+
+  const replaceItems = (nextItems: ModuleItem[]) => {
+    setCourse((current) => ({
+      ...current,
+      items: [
+        ...current.items.filter((item) => item.moduleId !== selectedModule.id),
+        ...nextItems,
+      ],
+    }));
+  };
+  const addItem = (type: ModuleItemType) => {
+    const label =
+      composerTypes.find((entry) => entry.type === type)?.label ??
+      "Learning block";
+    let nextItemNumber = 1;
+    while (
+      course.items.some((item) => item.id === `composer-item-${nextItemNumber}`)
+    ) {
+      nextItemNumber += 1;
+    }
+    const item = createModuleItem({
+      id: `composer-item-${nextItemNumber}`,
+      courseId: course.course.id,
+      moduleId: selectedModule.id,
+      type,
+      title: `New ${label.toLowerCase()}`,
+      position: selectedItems.length,
+      state: "draft",
+      actorId: "teacher-1",
+      now: DEMO_NOW,
+    });
+    replaceItems([...selectedItems, item]);
+  };
+  const updateItem = (nextItem: ModuleItem) => {
+    replaceItems(
+      selectedItems.map((item) => (item.id === nextItem.id ? nextItem : item)),
+    );
+  };
+  const commitItemTitle = (item: ModuleItem) => {
+    const draft = titleDrafts[item.id];
+    if (draft === undefined) return;
+    if (!draft.trim()) {
+      setTitleErrors((current) => ({
+        ...current,
+        [item.id]: "A module item needs a title before it can be saved.",
+      }));
+      return;
+    }
+    setTitleDrafts((current) => {
+      const next = { ...current };
+      delete next[item.id];
+      return next;
+    });
+    setTitleErrors((current) => {
+      const next = { ...current };
+      delete next[item.id];
+      return next;
+    });
+    if (draft.trim() === item.title) return;
+    updateItem(
+      reviseModuleItem(
+        item,
+        {
+          title: draft.trim(),
+          type: item.type,
+          completion: item.completion,
+          availability: item.availability,
+          prerequisiteItemIds: item.prerequisiteItemIds,
+        },
+        "teacher-1",
+        DEMO_NOW,
+      ),
+    );
+  };
+  const moveItem = (itemId: string, targetPosition: number) => {
+    const item = selectedItems.find((entry) => entry.id === itemId);
+    replaceItems(
+      moveModuleItem(
+        selectedItems,
+        itemId,
+        targetPosition,
+        "teacher-1",
+        DEMO_NOW,
+      ),
+    );
+    if (item) {
+      setOrderNotice(`${item.title} moved to position ${targetPosition + 1}.`);
+    }
+  };
+  const moveModuleInCourse = (moduleId: string, targetPosition: number) => {
+    const module = course.modules.find((entry) => entry.id === moduleId);
+    setCourse((current) => ({
+      ...current,
+      modules: moveModule(
+        current.modules,
+        moduleId,
+        targetPosition,
+        "teacher-1",
+        DEMO_NOW,
+      ),
+    }));
+    if (module) {
+      setOrderNotice(
+        `${module.title} moved to position ${targetPosition + 1}.`,
+      );
+    }
+  };
+  const setItemState = (item: ModuleItem, nextState: ReleaseState) => {
+    updateItem(transitionReleaseState(item, nextState, "teacher-1", DEMO_NOW));
+  };
+  const setModuleState = (nextState: ReleaseState) => {
+    setCourse((current) => ({
+      ...current,
+      modules: current.modules.map((module) =>
+        module.id === selectedModule.id
+          ? transitionReleaseState(module, nextState, "teacher-1", DEMO_NOW)
+          : module,
+      ),
+    }));
+  };
+  const addModule = () => {
+    const module = createModule({
+      id: `composer-module-${course.modules.length + 1}`,
+      courseId: course.course.id,
+      title: `New module ${course.modules.length + 1}`,
+      position: course.modules.length,
+      state: "draft",
+      actorId: "teacher-1",
+      now: DEMO_NOW,
+    });
+    setCourse((current) => ({
+      ...current,
+      modules: [...current.modules, module],
+    }));
+    setSelectedModuleId(module.id);
+  };
+
+  return (
+    <main id="main-content" className="page-shell composer-shell">
+      <nav
+        className="course-nav teacher-nav"
+        aria-label="Teacher course navigation"
+      >
+        <span className="course-nav-title">
+          Teacher workspace · Economics 10A
+        </span>
+        <span className="course-nav-links">
+          <span className="course-nav-current" aria-current="page">
+            Module Composer
+          </span>
+          <button type="button" onClick={() => setScreen("teacher-evidence")}>
+            Evidence &amp; marking
+          </button>
+        </span>
+      </nav>
+      <section className="composer-hero">
+        <div>
+          <p className="eyebrow">Teacher controls · Course authoring</p>
+          <h1>Build the learning path, in context.</h1>
+          <p className="hero-copy">
+            Add a learning block, resource, or assessment directly inside a
+            module. Keep release state and the student preview close to the
+            learning evidence.
+          </p>
+        </div>
+        <div className="composer-hero-actions">
+          <button
+            className="button primary"
+            type="button"
+            onClick={() => setScreen("student-course")}
+          >
+            Preview as student
+          </button>
+          <span className="demo-boundary">
+            Demo data · teacher-only controls
+          </span>
+        </div>
+      </section>
+      <div className="composer-layout">
+        <p className="sr-only" aria-live="polite">
+          {orderNotice}
+        </p>
+        <aside className="composer-sidebar" aria-labelledby="module-list-title">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">Course structure</p>
+              <h2 id="module-list-title">Modules</h2>
+            </div>
+            <button
+              className="button quiet compact-button"
+              type="button"
+              onClick={addModule}
+            >
+              + Add module
+            </button>
+          </div>
+          <p className="helper-copy">
+            Drag-free ordering is available through Move to, too.
+          </p>
+          <div className="composer-module-list">
+            {course.modules.map((module, index) => (
+              <div className="composer-module-row" key={module.id}>
+                <button
+                  className={
+                    module.id === selectedModule.id
+                      ? "composer-module selected"
+                      : "composer-module"
+                  }
+                  type="button"
+                  aria-pressed={module.id === selectedModule.id}
+                  onClick={() => setSelectedModuleId(module.id)}
+                >
+                  <span className="composer-module-number">{index + 1}</span>
+                  <span>
+                    <strong>{module.title}</strong>
+                    <small>{releaseLabel(module.state)}</small>
+                  </span>
+                </button>
+                <div
+                  className="composer-module-order"
+                  aria-label={`Order controls for ${module.title}`}
+                >
+                  <button
+                    type="button"
+                    aria-label={`Move ${module.title} up`}
+                    disabled={index === 0}
+                    onClick={() => moveModuleInCourse(module.id, index - 1)}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Move ${module.title} down`}
+                    disabled={index === course.modules.length - 1}
+                    onClick={() => moveModuleInCourse(module.id, index + 1)}
+                  >
+                    ↓
+                  </button>
+                  <label>
+                    <span className="sr-only">
+                      Move {module.title} to position
+                    </span>
+                    <select
+                      aria-label={`Move ${module.title} to position`}
+                      value={index}
+                      onChange={(event) =>
+                        moveModuleInCourse(
+                          module.id,
+                          Number(event.target.value),
+                        )
+                      }
+                    >
+                      {course.modules.map((_, position) => (
+                        <option key={position} value={position}>
+                          Move to {position + 1}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </div>
+            ))}
+          </div>
+        </aside>
+        <section className="composer-editor" aria-labelledby="composer-title">
+          <div className="composer-editor-heading">
+            <div>
+              <p className="eyebrow">
+                Module {selectedModule.position + 1} · Inline essentials
+              </p>
+              <h2 id="composer-title">{selectedModule.title}</h2>
+              <p className="helper-copy">
+                {selectedItems.length} item
+                {selectedItems.length === 1 ? "" : "s"} · prerequisites and
+                availability stay attached to the item.
+              </p>
+            </div>
+            <div className="composer-editor-actions">
+              <span className={`state-pill ${selectedModule.state}`}>
+                {releaseLabel(selectedModule.state)}
+              </span>
+              {selectedModule.state === "published" ? (
+                <button
+                  className="button quiet compact-button"
+                  type="button"
+                  onClick={() => setModuleState("hidden")}
+                >
+                  Hide module
+                </button>
+              ) : (
+                <button
+                  className="button primary compact-button"
+                  type="button"
+                  onClick={() => setModuleState("published")}
+                >
+                  Publish module
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="quick-add" aria-label="Add content to this module">
+            <span className="quick-add-label">Quick add</span>
+            {composerTypes.map((entry) => (
+              <button
+                className="quick-add-button"
+                key={entry.type}
+                type="button"
+                onClick={() => addItem(entry.type)}
+              >
+                + {entry.label}
+              </button>
+            ))}
+          </div>
+          <ol className="composer-item-list">
+            {selectedItems.map((item, index) => (
+              <li className="composer-item" key={item.id}>
+                <div
+                  className="composer-item-order"
+                  aria-label={`Order controls for ${item.title}`}
+                >
+                  <button
+                    type="button"
+                    aria-label={`Move ${item.title} up`}
+                    disabled={index === 0}
+                    onClick={() => moveItem(item.id, index - 1)}
+                  >
+                    ↑
+                  </button>
+                  <span>{index + 1}</span>
+                  <button
+                    type="button"
+                    aria-label={`Move ${item.title} down`}
+                    disabled={index === selectedItems.length - 1}
+                    onClick={() => moveItem(item.id, index + 1)}
+                  >
+                    ↓
+                  </button>
+                </div>
+                <div className="composer-item-main">
+                  <div className="composer-item-heading">
+                    <span className="item-type-label">
+                      {item.type.replace("-", " ")}
+                    </span>
+                    <span className={`state-pill ${item.state}`}>
+                      {releaseLabel(item.state)}
+                    </span>
+                  </div>
+                  <label className="sr-only" htmlFor={`item-title-${item.id}`}>
+                    Title for {item.title}
+                  </label>
+                  <input
+                    id={`item-title-${item.id}`}
+                    className="composer-title-input"
+                    value={titleDrafts[item.id] ?? item.title}
+                    aria-invalid={Boolean(titleErrors[item.id])}
+                    onChange={(event) =>
+                      setTitleDrafts((current) => ({
+                        ...current,
+                        [item.id]: event.target.value,
+                      }))
+                    }
+                    onBlur={() => commitItemTitle(item)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        commitItemTitle(item);
+                      }
+                    }}
+                  />
+                  {titleErrors[item.id] && (
+                    <span className="field-note composer-error" role="alert">
+                      {titleErrors[item.id]}
+                    </span>
+                  )}
+                  <details>
+                    <summary>Availability &amp; prerequisites</summary>
+                    <p>
+                      {item.availability.startsAt
+                        ? `Opens ${new Date(item.availability.startsAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`
+                        : "Available immediately"}
+                      {item.prerequisiteItemIds.length > 0
+                        ? ` · Requires ${item.prerequisiteItemIds.length} earlier item`
+                        : " · No prerequisite"}
+                    </p>
+                  </details>
+                </div>
+                <div className="composer-item-actions">
+                  <label>
+                    <span className="sr-only">
+                      Move {item.title} to position
+                    </span>
+                    <select
+                      aria-label={`Move ${item.title} to position`}
+                      value={index}
+                      onChange={(event) =>
+                        moveItem(item.id, Number(event.target.value))
+                      }
+                    >
+                      {selectedItems.map((_, position) => (
+                        <option key={position} value={position}>
+                          Move to {position + 1}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {item.state === "published" ? (
+                    <button
+                      className="button quiet compact-button"
+                      type="button"
+                      onClick={() => setItemState(item, "hidden")}
+                    >
+                      Hide
+                    </button>
+                  ) : (
+                    <button
+                      className="button primary compact-button"
+                      type="button"
+                      onClick={() => setItemState(item, "published")}
+                    >
+                      Publish
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ol>
+          <div className="composer-release-checklist">
+            <strong>Release checklist</strong>
+            <span>○ Preview this module as a student</span>
+            <span>○ Confirm availability and prerequisites</span>
+            <span>✓ One canonical item identity per block</span>
+          </div>
+          <p className="privacy-note">
+            Teacher controls are shown only in this author/QA demo. Production
+            permissions will be enforced by backend role and course scope.
+          </p>
+        </section>
+      </div>
+    </main>
+  );
+}
+
+function TeacherEvidence({
+  state,
+  dispatch,
+  setScreen,
+}: ActivityProps & { setScreen: (screen: DemoScreen) => void }) {
   const [filter, setFilter] = useState<
     "all" | "attention" | "review" | "not-started"
   >("all");
@@ -581,6 +1435,22 @@ function TeacherEvidence({ state, dispatch }: ActivityProps) {
       : `${state.firstCheckedCurve === "demand" ? "Demand" : "Supply"} ${state.firstCheckedShift === 1 ? "right" : state.firstCheckedShift === -1 ? "left" : "unchanged"}`;
   return (
     <main id="main-content" className="page-shell teacher-shell">
+      <nav
+        className="course-nav teacher-nav"
+        aria-label="Teacher course navigation"
+      >
+        <span className="course-nav-title">
+          Teacher workspace · Economics 10A
+        </span>
+        <span className="course-nav-links">
+          <button type="button" onClick={() => setScreen("teacher-composer")}>
+            Module Composer
+          </button>
+          <span className="course-nav-current" aria-current="page">
+            Evidence &amp; marking
+          </span>
+        </span>
+      </nav>
       <section className="hero teacher-hero">
         <div>
           <p className="eyebrow">Teacher evidence · Economics 10A</p>
@@ -835,7 +1705,10 @@ function TeacherEvidence({ state, dispatch }: ActivityProps) {
 }
 
 export function App() {
-  const [mode, setMode] = useState<PreviewMode>("student");
+  const [screen, setScreen] = useState<DemoScreen>("student-course");
+  const [course, setCourse] = useState<CourseModel>(() =>
+    loadCourseModel(window.localStorage),
+  );
   const [state, dispatch] = useReducer(
     activityReducer,
     initialActivityState,
@@ -844,17 +1717,49 @@ export function App() {
   useEffect(() => {
     saveActivityState(window.localStorage, state);
   }, [state]);
+  useEffect(() => {
+    saveCourseModel(window.localStorage, course);
+  }, [course]);
   return (
     <>
-      <PreviewHeader mode={mode} setMode={setMode} />
-      {mode === "student" ? (
-        <StudentActivity state={state} dispatch={dispatch} />
-      ) : (
-        <TeacherEvidence state={state} dispatch={dispatch} />
+      <PreviewHeader screen={screen} setScreen={setScreen} />
+      {screen === "student-course" && (
+        <StudentCourseHome
+          course={course}
+          state={state}
+          onOpenActivity={() => setScreen("student-activity")}
+        />
+      )}
+      {screen === "student-activity" && (
+        <StudentActivity
+          state={state}
+          dispatch={dispatch}
+          onBack={() => setScreen("student-course")}
+        />
+      )}
+      {screen === "teacher-composer" && (
+        <TeacherComposer
+          course={course}
+          setCourse={setCourse}
+          setScreen={setScreen}
+        />
+      )}
+      {screen === "teacher-evidence" && (
+        <TeacherEvidence
+          state={state}
+          dispatch={dispatch}
+          setScreen={setScreen}
+        />
       )}
       <footer>
         <p>Learning Loop LMS · Public pilot prototype · Synthetic data only</p>
-        <button type="button" onClick={() => dispatch({ type: "reset" })}>
+        <button
+          type="button"
+          onClick={() => {
+            dispatch({ type: "reset" });
+            setCourse(structuredClone(pilotCourseModel));
+          }}
+        >
           Reset local demo
         </button>
       </footer>

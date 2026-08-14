@@ -119,6 +119,10 @@ export interface CourseProjection {
     title: string;
     position: number;
     state: ReleaseState;
+    /** Student-safe aggregate for items that are not released yet. */
+    lockedItemCount: number;
+    nextAvailableAt: string | null;
+    lockedReason: "scheduled" | "prerequisite" | "mixed" | null;
     items: Array<{
       id: ModuleItemId;
       type: ModuleItemType;
@@ -519,6 +523,82 @@ export function orderModuleItems(items: readonly ModuleItem[]): ModuleItem[] {
   );
 }
 
+export function reorderModules(
+  modules: readonly Module[],
+  orderedIds: readonly ModuleId[],
+  actorId: string,
+  now: string,
+): Module[] {
+  const courseIds = new Set(modules.map((module) => module.courseId));
+  if (courseIds.size > 1) {
+    throw new Error("reorderModules accepts one course at a time");
+  }
+  assertNonEmpty(actorId, "actorId");
+  assertIsoDate(now, "now");
+  if (
+    modules.some(
+      (module) =>
+        assertIsoDate(now, "now") <
+        assertIsoDate(module.audit.updatedAt, "audit.updatedAt"),
+    )
+  ) {
+    throw new Error("now must not move a module audit backwards");
+  }
+  if (
+    orderedIds.length !== modules.length ||
+    new Set(orderedIds).size !== orderedIds.length
+  ) {
+    throw new Error("orderedIds must contain each module exactly once");
+  }
+  const byId = new Map(modules.map((module) => [module.id, module]));
+  if (orderedIds.some((id) => !byId.has(id))) {
+    throw new Error("orderedIds contains an unknown module");
+  }
+  return orderedIds.map((id, position) => {
+    const module = byId.get(id)!;
+    return {
+      ...module,
+      position,
+      availability: cloneAvailability(module.availability),
+      prerequisiteModuleIds: [...module.prerequisiteModuleIds],
+      completion: cloneModuleCompletion(module.completion),
+      revision: module.revision + 1,
+      audit: { ...module.audit, updatedBy: actorId, updatedAt: now },
+    };
+  });
+}
+
+/** Accessible Move-To equivalent for module drag/reorder UIs. */
+export function moveModule(
+  modules: readonly Module[],
+  moduleId: ModuleId,
+  targetPosition: number,
+  actorId: string,
+  now: string,
+): Module[] {
+  const ordered = [...modules].sort(
+    (a, b) => a.position - b.position || a.id.localeCompare(b.id),
+  );
+  const currentIndex = ordered.findIndex((module) => module.id === moduleId);
+  if (currentIndex < 0) throw new Error("module not found");
+  if (
+    !Number.isInteger(targetPosition) ||
+    targetPosition < 0 ||
+    targetPosition >= ordered.length
+  ) {
+    throw new Error("targetPosition is outside the course");
+  }
+  const next = [...ordered];
+  const [moved] = next.splice(currentIndex, 1);
+  next.splice(targetPosition, 0, moved);
+  return reorderModules(
+    next,
+    next.map((module) => module.id),
+    actorId,
+    now,
+  );
+}
+
 export function reorderModuleItems(
   items: readonly ModuleItem[],
   orderedIds: readonly ModuleItemId[],
@@ -814,6 +894,7 @@ export function projectCourse(
   context: AvailabilityContext,
 ): CourseProjection {
   assertValidCourseModel(model);
+  const nowMs = assertIsoDate(context.now, "context.now");
   const visibleModules = orderModules(model.modules).filter((module) => {
     if (role === "teacher") return module.state !== "archived";
     if (model.course.status !== "active") return false;
@@ -825,26 +906,86 @@ export function projectCourse(
       context.completedModuleIds,
     );
   });
-  const modules = visibleModules.map((module, visibleModulePosition) => ({
-    id: module.id,
-    title: module.title,
-    position: role === "teacher" ? module.position : visibleModulePosition,
-    state: module.state,
-    items: orderModuleItems(
+  const modules = visibleModules.map((module, visibleModulePosition) => {
+    const orderedItems = orderModuleItems(
       model.items.filter((item) => item.moduleId === module.id),
-    )
-      .filter((item) =>
-        role === "teacher"
-          ? item.state !== "archived"
-          : isAvailable(
-              item.state,
-              item.availability,
-              context,
-              item.prerequisiteItemIds,
-              context.completedItemIds,
-            ),
-      )
-      .map((item, visibleItemPosition) => ({
+    );
+    const visibleItems = orderedItems.filter((item) =>
+      role === "teacher"
+        ? item.state !== "archived"
+        : isAvailable(
+            item.state,
+            item.availability,
+            context,
+            item.prerequisiteItemIds,
+            context.completedItemIds,
+          ),
+    );
+    const lockedItems =
+      role === "student"
+        ? orderedItems.filter((item) => {
+            if (item.state !== "scheduled" && item.state !== "published") {
+              return false;
+            }
+            const startsAt = item.availability.startsAt
+              ? assertIsoDate(
+                  item.availability.startsAt,
+                  "availability.startsAt",
+                )
+              : null;
+            const endsAt = item.availability.endsAt
+              ? assertIsoDate(item.availability.endsAt, "availability.endsAt")
+              : null;
+            if (endsAt !== null && endsAt <= nowMs) return false;
+            const prerequisiteLocked = item.prerequisiteItemIds.some(
+              (id) => !context.completedItemIds?.has(id),
+            );
+            const futureRelease = startsAt !== null && startsAt > nowMs;
+            return (
+              item.state === "scheduled" || futureRelease || prerequisiteLocked
+            );
+          })
+        : [];
+    const nextAvailableAt =
+      lockedItems
+        .map((item) => item.availability.startsAt)
+        .filter(
+          (value): value is string =>
+            value !== null && assertIsoDate(value, "nextAvailableAt") > nowMs,
+        )
+        .sort(
+          (a, b) =>
+            assertIsoDate(a, "nextAvailableAt") -
+            assertIsoDate(b, "nextAvailableAt"),
+        )[0] ?? null;
+    const hasScheduledLock = lockedItems.some((item) => {
+      const startsAt = item.availability.startsAt
+        ? assertIsoDate(item.availability.startsAt, "availability.startsAt")
+        : null;
+      return (
+        item.state === "scheduled" || (startsAt !== null && startsAt > nowMs)
+      );
+    });
+    const hasPrerequisiteLock = lockedItems.some((item) =>
+      item.prerequisiteItemIds.some((id) => !context.completedItemIds?.has(id)),
+    );
+    const lockedReason: CourseProjection["modules"][number]["lockedReason"] =
+      hasScheduledLock && hasPrerequisiteLock
+        ? "mixed"
+        : hasScheduledLock
+          ? "scheduled"
+          : hasPrerequisiteLock
+            ? "prerequisite"
+            : null;
+    return {
+      id: module.id,
+      title: module.title,
+      position: role === "teacher" ? module.position : visibleModulePosition,
+      state: module.state,
+      lockedItemCount: lockedItems.length,
+      nextAvailableAt,
+      lockedReason,
+      items: visibleItems.map((item, visibleItemPosition) => ({
         id: item.id,
         type: item.type,
         title: item.title,
@@ -852,7 +993,8 @@ export function projectCourse(
         state: item.state,
         completion: cloneItemCompletion(item.completion),
       })),
-  }));
+    };
+  });
   return {
     role,
     course: {

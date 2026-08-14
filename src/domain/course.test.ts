@@ -6,6 +6,7 @@ import {
   createModuleItem,
   isAvailable,
   isItemComplete,
+  moveModule,
   moveModuleItem,
   projectCourse,
   reorderModuleItems,
@@ -159,6 +160,39 @@ describe("course/module domain", () => {
     ).toThrow(/exactly once/);
   });
 
+  it("supports audited accessible Move-To ordering for modules", () => {
+    const course = createCourse({
+      id: "econ-10a",
+      title: "Economics 10A",
+      subject: "Economics",
+      actorId: "teacher-1",
+      now,
+    });
+    const modules = [0, 1, 2].map((position) =>
+      createModule({
+        id: `module-${position + 1}`,
+        courseId: course.id,
+        title: `Module ${position + 1}`,
+        position,
+        actorId: "teacher-1",
+        now,
+      }),
+    );
+    const moved = moveModule(modules, "module-3", 0, "teacher-1", now);
+
+    expect(moved.map((entry) => [entry.id, entry.position])).toEqual([
+      ["module-3", 0],
+      ["module-1", 1],
+      ["module-2", 2],
+    ]);
+    expect(moved.every((entry) => entry.revision === 2)).toBe(true);
+    expect(modules.map((entry) => [entry.id, entry.position])).toEqual([
+      ["module-1", 0],
+      ["module-2", 1],
+      ["module-3", 2],
+    ]);
+  });
+
   it("enforces release transitions and keeps archived content terminal", () => {
     const draft = item("activity", "market-shifts", 0);
     expect(
@@ -293,6 +327,96 @@ describe("course/module domain", () => {
         { now },
       ).modules,
     ).toEqual([]);
+  });
+
+  it("returns student-safe locked release summaries without hidden item identities", () => {
+    const source = model();
+    const scheduledModule = createModule({
+      id: "policy-choices",
+      courseId: source.course.id,
+      title: "Policy choices",
+      position: 1,
+      state: "published",
+      actorId: "teacher-1",
+      now,
+    });
+    const scheduled = createModuleItem({
+      id: "scheduled-resource",
+      courseId: source.course.id,
+      moduleId: scheduledModule.id,
+      type: "resource",
+      title: "Scheduled resource",
+      position: 0,
+      state: "published",
+      availability: { startsAt: "2026-08-22T09:00:00.000Z", endsAt: null },
+      actorId: "teacher-1",
+      now,
+    });
+    const hidden = createModuleItem({
+      id: "teacher-draft",
+      courseId: source.course.id,
+      moduleId: scheduledModule.id,
+      type: "assignment",
+      title: "Teacher draft",
+      position: 1,
+      state: "draft",
+      actorId: "teacher-1",
+      now,
+    });
+    const expired = createModuleItem({
+      id: "expired-resource",
+      courseId: source.course.id,
+      moduleId: scheduledModule.id,
+      type: "resource",
+      title: "Expired resource",
+      position: 2,
+      state: "published",
+      availability: {
+        startsAt: "2026-08-10T09:00:00.000Z",
+        endsAt: "2026-08-14T09:00:00.000Z",
+      },
+      actorId: "teacher-1",
+      now,
+    });
+    const prerequisiteLocked = createModuleItem({
+      id: "prerequisite-resource",
+      courseId: source.course.id,
+      moduleId: scheduledModule.id,
+      type: "resource",
+      title: "Prerequisite resource",
+      position: 3,
+      state: "published",
+      prerequisiteItemIds: ["teacher-draft"],
+      actorId: "teacher-1",
+      now,
+    });
+    const student = projectCourse(
+      {
+        ...source,
+        modules: [...source.modules, scheduledModule],
+        items: [
+          ...source.items,
+          scheduled,
+          hidden,
+          expired,
+          prerequisiteLocked,
+        ],
+      },
+      "student",
+      { now, completedItemIds: new Set(["notice"]) },
+    );
+    const policy = student.modules.find(
+      (module) => module.id === scheduledModule.id,
+    );
+
+    expect(policy).toMatchObject({
+      lockedItemCount: 2,
+      nextAvailableAt: "2026-08-22T09:00:00.000Z",
+      lockedReason: "mixed",
+      items: [],
+    });
+    expect(JSON.stringify(policy)).not.toContain("teacher-draft");
+    expect(JSON.stringify(policy)).not.toContain("expired-resource");
   });
 
   it("fails closed for cross-course links, unknown prerequisites, and duplicate positions", () => {
