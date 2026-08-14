@@ -56,6 +56,10 @@ export interface GraphScenario {
   };
 }
 
+/** Visual footprint reserved for the labeled curve-adjustment affordance. */
+export const CURVE_HANDLE_WIDTH = 64;
+export const CURVE_HANDLE_HEIGHT = 28;
+
 export interface GraphState {
   shifts: Record<string, Shift>;
 }
@@ -303,6 +307,71 @@ export function rectsOverlap(first: Rect, second: Rect, gap = 0): boolean {
 }
 
 class LabelPlacementError extends Error {}
+
+function curveHandleRect(point: Point): Rect {
+  return {
+    x: point.x - CURVE_HANDLE_WIDTH / 2,
+    y: point.y - CURVE_HANDLE_HEIGHT / 2,
+    width: CURVE_HANDLE_WIDTH,
+    height: CURVE_HANDLE_HEIGHT,
+  };
+}
+
+function chooseHandleAnchor(
+  curve: { points: Point[]; preferredHandle: Point },
+  plot: Rect,
+  forbidden: Rect[],
+): Point {
+  const clampToHandleSafePlot = (point: Point): Point => ({
+    x: Math.min(
+      plot.x + plot.width - CURVE_HANDLE_WIDTH / 2 - 4,
+      Math.max(plot.x + CURVE_HANDLE_WIDTH / 2 + 4, point.x),
+    ),
+    y: Math.min(
+      plot.y + plot.height - CURVE_HANDLE_HEIGHT / 2 - 4,
+      Math.max(plot.y + CURVE_HANDLE_HEIGHT / 2 + 4, point.y),
+    ),
+  });
+  const preferredIndex = curve.points.reduce(
+    (closestIndex, point, index, points) => {
+      const closest = points[closestIndex] ?? curve.preferredHandle;
+      const preferredDistance =
+        Math.abs(point.x - curve.preferredHandle.x) +
+        Math.abs(point.y - curve.preferredHandle.y);
+      const closestDistance =
+        Math.abs(closest.x - curve.preferredHandle.x) +
+        Math.abs(closest.y - curve.preferredHandle.y);
+      return preferredDistance < closestDistance ? index : closestIndex;
+    },
+    0,
+  );
+  const candidates = [
+    clampToHandleSafePlot(curve.preferredHandle),
+    ...curve.points
+      .map((point, index) => ({ point, index }))
+      .sort(
+        (first, second) =>
+          Math.abs(first.index - preferredIndex) -
+          Math.abs(second.index - preferredIndex),
+      )
+      .map(({ point }) => clampToHandleSafePlot(point)),
+  ];
+  const isAvailable = (point: Point) => {
+    const rect = curveHandleRect(point);
+    return (
+      rect.x >= plot.x + 4 &&
+      rect.x + rect.width <= plot.x + plot.width - 4 &&
+      rect.y >= plot.y + 4 &&
+      rect.y + rect.height <= plot.y + plot.height - 4 &&
+      forbidden.every((other) => !rectsOverlap(rect, other, 4))
+    );
+  };
+  const chosen = candidates.find(isAvailable);
+  if (chosen) return chosen;
+  throw new LabelPlacementError(
+    "No collision-free graph adjustment handle position.",
+  );
+}
 
 function placeLabel(
   plot: Rect,
@@ -563,7 +632,7 @@ function buildGraphLayoutAtHeight(
       spec,
       points: sampled,
       path: pointsToPath(sampled),
-      handle: anchor,
+      preferredHandle: anchor,
     };
   });
 
@@ -595,14 +664,6 @@ function buildGraphLayoutAtHeight(
     }
   }
 
-  const handleRects = rawCurves
-    .filter((curve) => curve.spec.adjustable)
-    .map((curve) => ({
-      x: curve.handle.x - 12,
-      y: curve.handle.y - 12,
-      width: 24,
-      height: 24,
-    }));
   const equilibriumRect = equilibrium
     ? {
         x: equilibrium.x - 12,
@@ -611,8 +672,20 @@ function buildGraphLayoutAtHeight(
         height: 24,
       }
     : null;
+  const occupiedHandleRects: Rect[] = equilibriumRect ? [equilibriumRect] : [];
+  const positionedCurves = rawCurves.map((curve) => {
+    const handle = curve.spec.adjustable
+      ? chooseHandleAnchor(curve, plot, occupiedHandleRects)
+      : curve.preferredHandle;
+    if (curve.spec.adjustable)
+      occupiedHandleRects.push(curveHandleRect(handle));
+    return { ...curve, handle };
+  });
+  const handleRects = positionedCurves
+    .filter((curve) => curve.spec.adjustable)
+    .map((curve) => curveHandleRect(curve.handle));
   const labelRects: Array<{ id: string; rect: Rect }> = [];
-  const curves = rawCurves.map((curve) => {
+  const curves = positionedCurves.map((curve) => {
     const maximumLabelWidth = Math.max(
       68,
       Math.min(compact ? 132 : 180, plot.width * 0.58),

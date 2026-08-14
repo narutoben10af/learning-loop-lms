@@ -472,6 +472,16 @@ h2 {
   stroke: rgb(209 157 42 / 18%);
 }
 .curve-handle {
+  fill: rgb(255 255 255 / 96%);
+  pointer-events: none;
+}
+.curve-handle-grip {
+  pointer-events: none;
+}
+.curve-handle-label {
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 0.03em;
   pointer-events: none;
 }
 .graph-annotation {

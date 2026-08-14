@@ -126,7 +126,7 @@ describe("learning-loop prototype", () => {
     render(createElement(App));
     fireEvent.click(screen.getByRole("button", { name: "Open activity" }));
     const supplyCurve = screen.getByRole("slider", {
-      name: "Supply curve position",
+      name: "Supply curve adjustment handle",
     });
 
     fireEvent.keyDown(supplyCurve, { key: "ArrowRight" });
@@ -145,7 +145,7 @@ describe("learning-loop prototype", () => {
     render(createElement(App));
     fireEvent.click(screen.getByRole("button", { name: "Open activity" }));
     const demandCurve = screen.getByRole("slider", {
-      name: "Demand curve position",
+      name: "Demand curve adjustment handle",
     });
 
     fireEvent.keyDown(demandCurve, { key: "ArrowRight" });
@@ -155,6 +155,20 @@ describe("learning-loop prototype", () => {
     expect(
       screen.getByText(/Which side of the market does that affect first/),
     ).toBeInTheDocument();
+  });
+
+  it("makes adjustment handles distinct from the single equilibrium result point", () => {
+    render(createElement(App));
+    fireEvent.click(screen.getByRole("button", { name: "Open activity" }));
+
+    expect(screen.getAllByText("Adjust")).toHaveLength(2);
+    expect(document.querySelectorAll(".curve-handle")).toHaveLength(2);
+    expect(document.querySelectorAll(".equilibrium-point")).toHaveLength(1);
+    expect(
+      screen.getByRole("slider", {
+        name: "Supply curve adjustment handle",
+      }),
+    ).toHaveAttribute("aria-valuetext", "unchanged");
   });
 
   it("shows release state and teacher composer actions without crossing role surfaces", () => {

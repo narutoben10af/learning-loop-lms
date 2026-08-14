@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildGraphLayout,
+  CURVE_HANDLE_HEIGHT,
+  CURVE_HANDLE_WIDTH,
   findIntersection,
   rectsOverlap,
   validateScenario,
@@ -14,6 +16,13 @@ import {
 } from "./scenarios";
 
 describe("data-driven Economics graph model", () => {
+  const handleRect = (curve: { handle: { x: number; y: number } }) => ({
+    x: curve.handle.x - CURVE_HANDLE_WIDTH / 2,
+    y: curve.handle.y - CURVE_HANDLE_HEIGHT / 2,
+    width: CURVE_HANDLE_WIDTH,
+    height: CURVE_HANDLE_HEIGHT,
+  });
+
   it("validates each supported scenario configuration", () => {
     expect(validateScenario(ebikeMarketScenario)).toEqual([]);
     expect(validateScenario(longLabelMarketScenario)).toEqual([]);
@@ -158,10 +167,10 @@ describe("data-driven Economics graph model", () => {
           rectsOverlap(
             rect,
             {
-              x: curve.handle.x - 12,
-              y: curve.handle.y - 12,
-              width: 24,
-              height: 24,
+              x: curve.handle.x - CURVE_HANDLE_WIDTH / 2,
+              y: curve.handle.y - CURVE_HANDLE_HEIGHT / 2,
+              width: CURVE_HANDLE_WIDTH,
+              height: CURVE_HANDLE_HEIGHT,
             },
             2,
           ),
@@ -272,6 +281,59 @@ describe("data-driven Economics graph model", () => {
       expect(tick.rect.x + tick.rect.width).toBeLessThanOrEqual(layout.width);
     }
   });
+
+  it.each([ebikeMarketScenario, longLabelMarketScenario, demandGrowthScenario])(
+    "keeps adjustment handles distinct from the market result for %s",
+    (scenario) => {
+      for (const demand of scenario.interaction.snapValues) {
+        for (const supply of scenario.interaction.snapValues) {
+          for (const width of [320, 375, 720]) {
+            const layout = buildGraphLayout(
+              scenario,
+              { shifts: { demand, supply } },
+              width,
+              width < 520 ? 430 : 500,
+            );
+            const handles = layout.curves
+              .filter((curve) => curve.spec.adjustable)
+              .map(handleRect);
+            for (const rect of handles) {
+              expect(rect.x).toBeGreaterThanOrEqual(layout.plot.x + 4);
+              expect(rect.y).toBeGreaterThanOrEqual(layout.plot.y + 4);
+              expect(rect.x + rect.width).toBeLessThanOrEqual(
+                layout.plot.x + layout.plot.width - 4,
+              );
+              expect(rect.y + rect.height).toBeLessThanOrEqual(
+                layout.plot.y + layout.plot.height - 4,
+              );
+            }
+            for (let first = 0; first < handles.length; first += 1) {
+              for (
+                let second = first + 1;
+                second < handles.length;
+                second += 1
+              ) {
+                expect(rectsOverlap(handles[first], handles[second], 4)).toBe(
+                  false,
+                );
+              }
+            }
+            if (layout.equilibrium) {
+              const equilibriumRect = {
+                x: layout.equilibrium.x - 12,
+                y: layout.equilibrium.y - 12,
+                width: 24,
+                height: 24,
+              };
+              for (const rect of handles) {
+                expect(rectsOverlap(rect, equilibriumRect, 4)).toBe(false);
+              }
+            }
+          }
+        }
+      }
+    },
+  );
 
   it("renders a point-generated PPF without assuming an equilibrium", () => {
     const layout = buildGraphLayout(
