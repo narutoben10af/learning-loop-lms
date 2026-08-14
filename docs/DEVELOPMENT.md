@@ -18,3 +18,9 @@ For UI changes, also record manual evidence at desktop, 375px, 320px, keyboard-o
 ## State and content
 
 Keep immutable scenario definitions separate from learner state. All demo records and copy must be synthetic and original. A UI role preview must never be reused as a permission check.
+
+## Public prototype deployment
+
+GitHub Pages deploys only after the `CI` workflow succeeds on `main` (or a maintainer explicitly dispatches the deployment workflow). The build uses `VITE_BASE_PATH=/learning-loop-lms/` so assets resolve under the repository Pages path. Local development keeps `/` as its base.
+
+The Pages site is a static evaluation surface, not a production environment. It must not receive real student data, secrets, provider keys, analytics scripts, backend credentials, or claims of production authentication/cloud persistence.
