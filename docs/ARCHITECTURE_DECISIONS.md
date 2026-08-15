@@ -2,6 +2,48 @@
 
 Status: Phase 0/Phase 1 planning contracts; no live AI, MCP, or Gemma integration in the first UI vertical slice.
 
+## ADR-005 — Workspace, course membership, and storage-adapter boundaries
+
+Decision: expand the prototype around a versioned workspace aggregate rather
+than placing more unrelated state in the existing single-course component.
+Workspace services own the course catalogue and memberships; course services
+own teaching content and operations; a separate storage adapter owns media
+bytes. UI routes consume role-bound projections from these services.
+
+- A workspace contains stable course references and membership relationships,
+  not embedded credentials or raw person records.
+- Course creation starts in `draft` and records immutable course ID, title,
+  code, subject, term/section, owner membership, lifecycle, version, and audit.
+- A person's ability to list or open a course comes from an active membership
+  projection. Client-side route state cannot grant access to a course.
+- The local prototype uses versioned browser persistence and fictional data;
+  malformed, stale, or unknown records fail closed to a safe fixture.
+- Announcements, media, pages, assessments, submissions, and grades remain
+  distinct domain records even when a course screen composes them together.
+- `MediaStorageAdapter` separates content metadata from binary storage. The
+  local demo adapter may expose an ephemeral same-session preview but never
+  persists bytes or claims durable upload.
+- Student media projections use an explicit allowlist and omit local paths,
+  file handles, object URLs, teacher notes, provider IDs, and unknown fields.
+- A durable provider such as Supabase Storage or R2 is a later, separately
+  authorised adapter. It must add tenant-scoped keys, signed access,
+  server-side permission checks, file/type scanning, quotas, retention,
+  deletion/revocation, audit, and secret management.
+
+### Acceptance criteria
+
+1. Workspace/course/membership IDs and audit fields validate deterministically;
+   course create/select/archive-safe commands do not mutate their inputs.
+2. Teacher, student, assistant, guardian, and administrator fixtures list only
+   courses and signals their active relationships permit.
+3. Unknown roles, cross-organisation relationships, malformed lifecycle state,
+   duplicate IDs, invalid timestamps, and stale schema versions fail closed.
+4. A local file draft cannot transition to a durable published student file.
+5. Media metadata cloning/projection reconstructs an exact allowlist, strips
+   private local fields, and never serialises browser file bytes.
+6. Replacing the local storage adapter with a fake durable adapter requires no
+   change to course, module, or learner-facing content schemas.
+
 ## ADR-004 — Course/module domain as the authoring foundation
 
 Decision: represent a course shell, ordered modules, and module items as

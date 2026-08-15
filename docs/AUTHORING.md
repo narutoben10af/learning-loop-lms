@@ -15,4 +15,4 @@ Saving a published item creates a new draft revision and removes that item from 
 
 ## Next handoff
 
-The following assessment/question-bank PR will add canonical assessment identity, parts/attempts, taxonomy, validation, and release gates. A future backend will replace local metadata with permissioned storage and enforce tenant/role permissions server-side.
+The immediate handoff is the real course workspace: My workspace, course creation/selection, the role-aware course shell, People, Announcements, and a transparent local-media library that integrates this Module Composer. Assessment/question-bank work remains the next core teaching engine after that shell. A future backend will replace local metadata with permissioned storage and enforce tenant/role permissions server-side.
