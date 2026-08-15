@@ -318,13 +318,13 @@ describe("learning-loop prototype", () => {
     render(createElement(App));
     openStudentActivity();
     const supplyCurve = screen.getByRole("slider", {
-      name: "Supply curve adjustment handle",
+      name: "Supply curve shift control",
     });
 
     fireEvent.keyDown(supplyCurve, { key: "ArrowRight" });
 
     expect(supplyCurve).toHaveAttribute("aria-valuenow", "1");
-    expect(screen.getByText("$4 · 80 rentals")).toBeInTheDocument();
+    expect(screen.getAllByText("$4 · 80 rentals")).toHaveLength(2);
     expect(
       screen.getByRole("button", { name: "Right →", pressed: true }),
     ).toBeInTheDocument();
@@ -337,7 +337,7 @@ describe("learning-loop prototype", () => {
     render(createElement(App));
     openStudentActivity();
     const demandCurve = screen.getByRole("slider", {
-      name: "Demand curve adjustment handle",
+      name: "Demand curve shift control",
     });
 
     fireEvent.keyDown(demandCurve, { key: "ArrowRight" });
@@ -349,18 +349,29 @@ describe("learning-loop prototype", () => {
     ).toBeInTheDocument();
   });
 
-  it("makes adjustment handles distinct from the single equilibrium result point", () => {
+  it("shows readable shift controls and a before/now market comparison", () => {
     render(createElement(App));
     openStudentActivity();
 
-    expect(screen.getAllByText("Adjust")).toHaveLength(2);
+    expect(screen.getAllByText("Shift")).toHaveLength(2);
     expect(document.querySelectorAll(".curve-handle")).toHaveLength(2);
     expect(document.querySelectorAll(".equilibrium-point")).toHaveLength(1);
+    const supplyControl = screen.getByRole("slider", {
+      name: "Supply curve shift control",
+    });
+    expect(supplyControl).toHaveAttribute("aria-valuetext", "unchanged");
+
+    fireEvent.keyDown(supplyControl, { key: "ArrowRight" });
+
+    expect(document.querySelectorAll(".curve-baseline")).toHaveLength(1);
+    expect(document.querySelectorAll(".equilibrium-point")).toHaveLength(2);
     expect(
-      screen.getByRole("slider", {
-        name: "Supply curve adjustment handle",
-      }),
-    ).toHaveAttribute("aria-valuetext", "unchanged");
+      document.querySelector(".baseline-equilibrium-point"),
+    ).not.toBeNull();
+    expect(document.querySelector(".current-equilibrium-point")).not.toBeNull();
+    expect(screen.getByRole("note")).toHaveTextContent(
+      "Dashed curve and hollow amber point = before",
+    );
   });
 
   it("shows release state and teacher composer actions without crossing role surfaces", () => {

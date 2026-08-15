@@ -468,9 +468,22 @@ h2 {
   letter-spacing: 0;
   text-transform: none;
 }
+.equilibrium-banner .equilibrium-value.compact {
+  font-size: 13px;
+}
 .equilibrium-guides line {
   stroke-dasharray: 5 5;
   stroke-width: 1.5;
+}
+.equilibrium-guides.baseline {
+  opacity: 0.58;
+}
+.curve-baseline {
+  opacity: 0.5;
+  stroke-dasharray: 8 7;
+}
+.curve-current {
+  opacity: 1;
 }
 .curve-label-bg {
   fill: rgb(255 255 255 / 92%);
@@ -491,17 +504,49 @@ h2 {
   stroke: rgb(209 157 42 / 18%);
 }
 .curve-handle {
-  fill: rgb(255 255 255 / 96%);
   pointer-events: none;
 }
 .curve-handle-grip {
   pointer-events: none;
 }
 .curve-handle-label {
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 850;
   letter-spacing: 0.03em;
   pointer-events: none;
+}
+.baseline-equilibrium-point {
+  opacity: 0.82;
+}
+.graph-comparison-summary {
+  background: #f7f9f8;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  display: grid;
+  gap: 0.55rem 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 0.7rem;
+  padding: 0.8rem 0.9rem;
+}
+.graph-comparison-summary div {
+  display: grid;
+  gap: 0.15rem;
+}
+.graph-comparison-summary strong {
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.graph-comparison-summary span {
+  font-weight: 850;
+}
+.graph-comparison-summary p {
+  color: var(--muted);
+  font-size: 0.76rem;
+  grid-column: 1 / -1;
+  line-height: 1.45;
+  margin: 0;
 }
 .graph-annotation {
   pointer-events: none;

@@ -61,7 +61,7 @@ function ValidatedEconomicsGraph({
     const element = containerRef.current;
     if (!element) return;
     const update = () => {
-      const measured = element.getBoundingClientRect().width;
+      const measured = element.clientWidth;
       if (measured > 0) setWidth(measured);
     };
     update();
@@ -151,6 +151,9 @@ function ValidatedEconomicsGraph({
   const equilibriumText = layout.equilibrium
     ? `${formatAxisValue(scenario.yAxis, layout.equilibrium.yValue)} · ${Math.round(layout.equilibrium.xValue)} ${scenario.xAxis.unit ?? "units"}`
     : "No intersection in range";
+  const baselineEquilibriumText = layout.baselineEquilibrium
+    ? `${formatAxisValue(scenario.yAxis, layout.baselineEquilibrium.yValue)} · ${Math.round(layout.baselineEquilibrium.xValue)} ${scenario.xAxis.unit ?? "units"}`
+    : null;
   const annotationText = layout.annotations
     .map((annotation) => annotation.spec.label)
     .join(". ");
@@ -168,7 +171,7 @@ function ValidatedEconomicsGraph({
         <svg
           viewBox={`0 0 ${layout.width} ${layout.height}`}
           role="group"
-          aria-label={`${scenario.title}. ${scenario.accessibleSummary} Current ${equilibriumText}.${annotationText ? ` ${annotationText}.` : ""}`}
+          aria-label={`${scenario.title}. ${scenario.accessibleSummary} ${baselineEquilibriumText ? `Before equilibrium ${baselineEquilibriumText}. ` : ""}Current equilibrium ${equilibriumText}.${annotationText ? ` ${annotationText}.` : ""}`}
           preserveAspectRatio="xMidYMid meet"
         >
           <defs>
@@ -199,12 +202,31 @@ function ValidatedEconomicsGraph({
               height={layout.equilibriumBanner.height}
               rx="10"
             />
-            <text x="12" y="17">
-              Current equilibrium
-            </text>
-            <text className="equilibrium-value" x="12" y="36">
-              {equilibriumText}
-            </text>
+            {baselineEquilibriumText ? (
+              <>
+                <text x="12" y="18">
+                  Before
+                </text>
+                <text className="equilibrium-value compact" x="67" y="18">
+                  {baselineEquilibriumText}
+                </text>
+                <text x="12" y="43">
+                  Now
+                </text>
+                <text className="equilibrium-value compact" x="67" y="43">
+                  {equilibriumText}
+                </text>
+              </>
+            ) : (
+              <>
+                <text x="12" y="20">
+                  Current equilibrium
+                </text>
+                <text className="equilibrium-value" x="12" y="42">
+                  {equilibriumText}
+                </text>
+              </>
+            )}
           </g>
 
           <g className="graph-grid" aria-hidden="true">
@@ -320,6 +342,26 @@ function ValidatedEconomicsGraph({
           </g>
 
           <g clipPath={`url(#${scenario.id}-plot-clip)`}>
+            {layout.baselineEquilibrium && (
+              <g
+                className="equilibrium-guides baseline"
+                stroke={scenario.style.equilibrium}
+                aria-hidden="true"
+              >
+                <line
+                  x1={layout.plot.x}
+                  x2={layout.baselineEquilibrium.x}
+                  y1={layout.baselineEquilibrium.y}
+                  y2={layout.baselineEquilibrium.y}
+                />
+                <line
+                  x1={layout.baselineEquilibrium.x}
+                  x2={layout.baselineEquilibrium.x}
+                  y1={layout.baselineEquilibrium.y}
+                  y2={layout.plot.y + layout.plot.height}
+                />
+              </g>
+            )}
             {layout.equilibrium && (
               <g
                 className="equilibrium-guides"
@@ -340,9 +382,24 @@ function ValidatedEconomicsGraph({
                 />
               </g>
             )}
+            {layout.curves.map(
+              (curve) =>
+                curve.baselinePath && (
+                  <path
+                    key={`baseline-${curve.spec.id}`}
+                    className="curve-baseline"
+                    d={curve.baselinePath}
+                    fill="none"
+                    stroke={curve.spec.color}
+                    strokeWidth="3"
+                    aria-hidden="true"
+                  />
+                ),
+            )}
             {layout.curves.map((curve) => (
               <path
                 key={`visible-${curve.spec.id}`}
+                className="curve-current"
                 d={curve.path}
                 fill="none"
                 stroke={curve.spec.color}
@@ -387,7 +444,7 @@ function ValidatedEconomicsGraph({
                     width={CURVE_HANDLE_WIDTH}
                     height={CURVE_HANDLE_HEIGHT}
                     rx="8"
-                    fill={scenario.style.background}
+                    fill={curve.spec.color}
                     stroke={curve.spec.color}
                     strokeWidth="3"
                     aria-hidden="true"
@@ -395,7 +452,7 @@ function ValidatedEconomicsGraph({
                   <path
                     className="curve-handle-grip"
                     d={`M ${curve.handle.x - 18} ${curve.handle.y - 5} h 10 M ${curve.handle.x - 18} ${curve.handle.y} h 10 M ${curve.handle.x - 18} ${curve.handle.y + 5} h 10`}
-                    stroke={curve.spec.color}
+                    stroke="white"
                     strokeWidth="2"
                     strokeLinecap="round"
                     aria-hidden="true"
@@ -404,10 +461,10 @@ function ValidatedEconomicsGraph({
                     className="curve-handle-label"
                     x={curve.handle.x + 2}
                     y={curve.handle.y + 4}
-                    fill={curve.spec.color}
+                    fill="white"
                     aria-hidden="true"
                   >
-                    Adjust
+                    Shift
                   </text>
                   <path
                     className="curve-hit"
@@ -417,7 +474,7 @@ function ValidatedEconomicsGraph({
                     strokeWidth={scenario.interaction.minimumHitTarget}
                     role="slider"
                     tabIndex={0}
-                    aria-label={`${curve.spec.label} curve adjustment handle`}
+                    aria-label={`${curve.spec.label} curve shift control`}
                     aria-valuemin={scenario.interaction.snapValues[0]}
                     aria-valuemax={scenario.interaction.snapValues.at(-1)}
                     aria-valuenow={state.shifts[curve.spec.id] ?? 0}
@@ -485,9 +542,22 @@ function ValidatedEconomicsGraph({
             </g>
           ))}
 
+          {layout.baselineEquilibrium && (
+            <circle
+              className="equilibrium-point baseline-equilibrium-point"
+              cx={layout.baselineEquilibrium.x}
+              cy={layout.baselineEquilibrium.y}
+              r="7"
+              fill={scenario.style.background}
+              stroke={scenario.style.equilibrium}
+              strokeWidth="3"
+            >
+              <title>{`Before ${layout.baselineEquilibrium.label.toLowerCase()}: ${baselineEquilibriumText}`}</title>
+            </circle>
+          )}
           {layout.equilibrium && (
             <circle
-              className="equilibrium-point"
+              className="equilibrium-point current-equilibrium-point"
               cx={layout.equilibrium.x}
               cy={layout.equilibrium.y}
               r="7"
@@ -534,12 +604,28 @@ function ValidatedEconomicsGraph({
           </g>
         </svg>
       </div>
+      {baselineEquilibriumText && (
+        <div className="graph-comparison-summary" role="note">
+          <div>
+            <strong>Before</strong>
+            <span>{baselineEquilibriumText}</span>
+          </div>
+          <div>
+            <strong>Now</strong>
+            <span>{equilibriumText}</span>
+          </div>
+          <p>
+            Dashed curve and hollow amber point = before. Solid curve and filled
+            amber point = now.
+          </p>
+        </div>
+      )}
       <p className="graph-instructions">
-        Use the labeled Adjust handle to drag a whole curve left or right.
-        Keyboard: focus a curve adjustment handle, use Left/Right Arrow, Home to
-        reset, and Enter or Space to check. The amber point is the only
-        market-result point; the controls and schedule below perform the same
-        adjustment.
+        Use the filled Shift control on a curve to drag it left or right.
+        Keyboard: focus a curve shift control, use Left/Right Arrow, Home to
+        reset, and Enter or Space to check. After a shift, dashed/hollow marks
+        show the baseline and solid/filled marks show the new result. The
+        controls and schedule below perform the same adjustment.
       </p>
       <p className="sr-only" aria-live="polite">
         {scenario.curves
@@ -548,6 +634,9 @@ function ValidatedEconomicsGraph({
               `${curve.label} ${shiftText(state.shifts[curve.id] ?? 0)}.`,
           )
           .join(" ")}{" "}
+        {baselineEquilibriumText
+          ? `Before equilibrium ${baselineEquilibriumText}. `
+          : ""}
         Current equilibrium {equilibriumText}.
         {annotationText ? ` ${annotationText}.` : ""}
       </p>
