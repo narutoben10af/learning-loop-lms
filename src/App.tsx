@@ -97,6 +97,23 @@ import {
   type AnnouncementSnapshot,
 } from "./domain/announcements";
 import { CourseAnnouncements } from "./CourseAnnouncements";
+import {
+  MEDIA_STORAGE_KEY,
+  addMediaDraft,
+  archiveMedia,
+  createMediaAsset,
+  createMediaSnapshot,
+  loadMediaSnapshot,
+  normalizeHttpsUrl,
+  normalizeYouTubeSource,
+  projectCourseMedia,
+  publishMedia,
+  reviseMedia,
+  saveMediaSnapshot,
+  type MediaSnapshot,
+  type MediaSource,
+} from "./domain/media";
+import { CourseFiles } from "./CourseFiles";
 
 const predictionOptions: Array<{ value: Prediction; label: string }> = [
   { value: "price-down-quantity-up", label: "Price falls and quantity rises" },
@@ -415,6 +432,32 @@ function buildPilotAnnouncementSnapshot(): AnnouncementSnapshot {
 }
 
 const pilotAnnouncementSnapshot = buildPilotAnnouncementSnapshot();
+
+function buildPilotMediaSnapshot(): MediaSnapshot {
+  const reading = createMediaAsset({
+    id: "price-controls-reading",
+    organizationId: DEMO_ORGANIZATION_ID,
+    courseId: pilotCourseModel.course.id,
+    title: "Price controls: synthetic guided reading",
+    description:
+      "A pilot link record showing how a teacher can curate an external course resource.",
+    source: {
+      kind: "link",
+      url: "https://example.edu/economics/price-controls",
+    },
+    actorId: teacherActor.principalId,
+    now: DEMO_NOW,
+  });
+  reading.state = "published";
+  return createMediaSnapshot(
+    DEMO_ORGANIZATION_ID,
+    ownerActor.principalId,
+    DEMO_NOW,
+    [reading],
+  );
+}
+
+const pilotMediaSnapshot = buildPilotMediaSnapshot();
 
 function loadAppWorkspace(storage: Storage): WorkspaceSnapshot {
   const loaded = loadWorkspaceSnapshot(storage, {
@@ -2827,6 +2870,9 @@ export function App() {
     useState<AnnouncementSnapshot>(() =>
       loadAnnouncementSnapshot(window.localStorage, pilotAnnouncementSnapshot),
     );
+  const [mediaSnapshot, setMediaSnapshot] = useState<MediaSnapshot>(() =>
+    loadMediaSnapshot(window.localStorage, pilotMediaSnapshot),
+  );
   const [selectedCourseId, setSelectedCourseId] = useState(
     pilotCourseModel.course.id,
   );
@@ -2852,6 +2898,9 @@ export function App() {
   useEffect(() => {
     saveAnnouncementSnapshot(window.localStorage, announcementSnapshot);
   }, [announcementSnapshot]);
+  useEffect(() => {
+    saveMediaSnapshot(window.localStorage, mediaSnapshot);
+  }, [mediaSnapshot]);
   useEffect(() => {
     const onPopState = (event: PopStateEvent) => {
       const route = normalizeHistoryState(event.state);
@@ -3023,6 +3072,22 @@ export function App() {
         studentActor,
         selectedCourseId,
         new Date().toISOString(),
+      )
+    : null;
+  const teacherMediaProjection = teacherSelectedCatalogueCourse
+    ? projectCourseMedia(
+        mediaSnapshot,
+        workspaceSnapshot,
+        teacherActor,
+        selectedCourseId,
+      )
+    : null;
+  const studentMediaProjection = studentSelectedCatalogueCourse
+    ? projectCourseMedia(
+        mediaSnapshot,
+        workspaceSnapshot,
+        studentActor,
+        selectedCourseId,
       )
     : null;
   const completedItemIds = new Set(
@@ -3364,6 +3429,125 @@ export function App() {
     }
   };
 
+  const mediaMutationTime = () =>
+    new Date(
+      Math.max(
+        Date.now(),
+        Date.parse(mediaSnapshot.audit.updatedAt),
+        Date.parse(workspaceSnapshot.workspace.audit.updatedAt),
+      ),
+    ).toISOString();
+
+  const saveSelectedCourseMedia = (input: {
+    id?: string;
+    title: string;
+    description: string;
+    altText: string | null;
+    source: MediaSource;
+  }): { error: string | null; id: string | null } => {
+    if (!input.title.trim() || !input.description.trim()) {
+      return {
+        error: "Add a title and description before saving the resource.",
+        id: null,
+      };
+    }
+    let source: MediaSource;
+    try {
+      if (input.source.kind === "youtube") {
+        source = {
+          kind: "youtube",
+          ...normalizeYouTubeSource(input.source.url),
+        };
+      } else if (input.source.kind === "link") {
+        source = {
+          kind: "link",
+          url: normalizeHttpsUrl(input.source.url),
+        };
+      } else {
+        source = input.source;
+      }
+      const now = mediaMutationTime();
+      let id = input.id;
+      if (id) {
+        setMediaSnapshot(
+          reviseMedia(mediaSnapshot, workspaceSnapshot, teacherActor, {
+            id,
+            title: input.title,
+            description: input.description,
+            altText: input.altText,
+            source,
+            now,
+          }),
+        );
+      } else {
+        let sequence = mediaSnapshot.assets.length + 1;
+        id = `media-${sequence}`;
+        while (mediaSnapshot.assets.some((asset) => asset.id === id)) {
+          sequence += 1;
+          id = `media-${sequence}`;
+        }
+        setMediaSnapshot(
+          addMediaDraft(mediaSnapshot, workspaceSnapshot, teacherActor, {
+            id,
+            courseId: selectedCourseId,
+            title: input.title,
+            description: input.description,
+            altText: input.altText,
+            source,
+            now,
+          }),
+        );
+      }
+      return { error: null, id };
+    } catch (error) {
+      return {
+        error:
+          error instanceof Error
+            ? error.message
+            : "The resource could not be saved.",
+        id: null,
+      };
+    }
+  };
+
+  const publishSelectedCourseMedia = (id: string): string | null => {
+    try {
+      setMediaSnapshot(
+        publishMedia(
+          mediaSnapshot,
+          workspaceSnapshot,
+          teacherActor,
+          id,
+          mediaMutationTime(),
+        ),
+      );
+      return null;
+    } catch (error) {
+      return error instanceof Error
+        ? error.message
+        : "The resource could not be published.";
+    }
+  };
+
+  const archiveSelectedCourseMedia = (id: string): string | null => {
+    try {
+      setMediaSnapshot(
+        archiveMedia(
+          mediaSnapshot,
+          workspaceSnapshot,
+          teacherActor,
+          id,
+          mediaMutationTime(),
+        ),
+      );
+      return null;
+    } catch (error) {
+      return error instanceof Error
+        ? error.message
+        : "The resource could not be archived.";
+    }
+  };
+
   return (
     <>
       <PreviewHeader screen={screen} setScreen={setScreen} />
@@ -3460,6 +3644,8 @@ export function App() {
                 role="student"
                 projection={studentAnnouncementProjection}
               />
+            ) : courseDestination === "files" && studentMediaProjection ? (
+              <CourseFiles role="student" projection={studentMediaProjection} />
             ) : (
               <CourseDestinationPlaceholder
                 destination={
@@ -3518,6 +3704,14 @@ export function App() {
                 onSave={saveSelectedCourseAnnouncement}
                 onRelease={releaseSelectedCourseAnnouncement}
                 onArchive={archiveSelectedCourseAnnouncement}
+              />
+            ) : courseDestination === "files" && teacherMediaProjection ? (
+              <CourseFiles
+                role="teacher"
+                projection={teacherMediaProjection}
+                onSave={saveSelectedCourseMedia}
+                onPublish={publishSelectedCourseMedia}
+                onArchive={archiveSelectedCourseMedia}
               />
             ) : (
               <CourseDestinationPlaceholder
@@ -3611,6 +3805,8 @@ export function App() {
                 role="student"
                 projection={studentAnnouncementProjection}
               />
+            ) : courseDestination === "files" && studentMediaProjection ? (
+              <CourseFiles role="student" projection={studentMediaProjection} />
             ) : (
               <CourseDestinationPlaceholder
                 destination={
@@ -3666,9 +3862,11 @@ export function App() {
             window.localStorage.removeItem(COURSE_STORAGE_KEY);
             window.localStorage.removeItem(PEOPLE_STORAGE_KEY);
             window.localStorage.removeItem(ANNOUNCEMENTS_STORAGE_KEY);
+            window.localStorage.removeItem(MEDIA_STORAGE_KEY);
             setWorkspaceSnapshot(structuredClone(pilotWorkspaceSnapshot));
             setPeopleSnapshot(structuredClone(pilotPeopleSnapshot));
             setAnnouncementSnapshot(structuredClone(pilotAnnouncementSnapshot));
+            setMediaSnapshot(structuredClone(pilotMediaSnapshot));
             setSelectedCourseId(pilotCourseModel.course.id);
             setComposerDrafts({});
             window.history.replaceState(

@@ -20,10 +20,11 @@ Learning Loop is an experimental, learning-first LMS growing from one validated 
 - An original responsive course workspace with stable role-aware navigation, a teaching-action Home, integrated Modules authoring/student learning, and truthful scoped states for course operations still to come.
 - A functional synthetic People surface with profile-linked course memberships, teacher roster search/filter, local pending-record creation without email, and a private student self-projection.
 - A functional local Announcements surface with explicit audience, draft/scheduled/published/archive states, deliberate release, and a student feed that excludes private or future notices.
+- A functional Files/media surface for validated HTTPS links, optional user-loaded YouTube embeds, and honest device-local file/image drafts whose bytes and preview URLs are never persisted or shown to students.
 - A teacher-only Module Composer with contextual editing for pages, learning blocks, resources, videos, and honest draft-only assessment handoffs.
 - Minimal private mastery evidence tied to demonstrated outcomes, not time, streaks, or public ranking.
 
-The current build starts at **My workspace**, supports local multi-course creation/selection, and opens each selected course into a recognisable Home/Modules/People/Announcements workspace. It is still not a complete LMS: Files/media is the next functional shell slice, while the remaining named course areas disclose their current limits. See the [canonical master product plan](docs/MASTER_PRODUCT_PLAN.md) for the honest gap assessment, information architecture, and phase boundaries.
+The current build starts at **My workspace**, supports local multi-course creation/selection, and opens each selected course into a recognisable Home/Modules/People/Announcements/Files workspace. It is still not a complete LMS: assessment, question-bank, submissions, Gradebook, attendance, and production identity/storage remain sequenced work, while named unfinished course areas disclose their current limits. See the [canonical master product plan](docs/MASTER_PRODUCT_PLAN.md) for the honest gap assessment, information architecture, and phase boundaries.
 
 Not included: payments, live AI or model-provider calls, a live MCP server, native Flutter apps, Canvas integration, parent access, attendance, public registration, remote proctoring, Python execution, or copied exam content.
 

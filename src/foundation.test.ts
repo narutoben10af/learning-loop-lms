@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { App } from "./App";
 import { PEOPLE_STORAGE_KEY } from "./domain/people";
 import { ANNOUNCEMENTS_STORAGE_KEY } from "./domain/announcements";
+import { MEDIA_STORAGE_KEY } from "./domain/media";
 
 function openTeacherComposer(): void {
   if (!screen.queryByRole("heading", { name: "My workspace" })) {
@@ -61,6 +62,14 @@ describe("learning-loop prototype", () => {
           values.set(key, value);
         },
       } satisfies Storage,
+    });
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: () => "blob:learning-loop-preview",
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: () => undefined,
     });
   });
 
@@ -203,8 +212,219 @@ describe("learning-loop prototype", () => {
     expect(screen.queryByText("Teacher course")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Files" }));
-    expect(screen.getByRole("heading", { name: "Files" })).toBeVisible();
-    expect(screen.getByText(/no browser-selected bytes/i)).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "Files & media" }),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Price controls: synthetic guided reading"),
+    ).toBeVisible();
+    expect(screen.queryByRole("button", { name: /add resource/i })).toBeNull();
+  });
+
+  it("creates, validates, publishes, and projects an external resource", () => {
+    render(createElement(App));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open course workspace" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Files" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add resource" }));
+    expect(screen.getByLabelText("Title")).toHaveFocus();
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "Elasticity data guide" },
+    });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Synthetic course resource for interpreting data." },
+    });
+    fireEvent.change(screen.getByLabelText("HTTPS URL"), {
+      target: { value: "javascript:alert(1)" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(/Only HTTPS/);
+    fireEvent.change(screen.getByLabelText("HTTPS URL"), {
+      target: { value: "https://example.edu/economics/elasticity" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    const draftCard = screen
+      .getByText("Elasticity data guide")
+      .closest("article");
+    expect(
+      within(draftCard as HTMLElement).getByRole("button", {
+        name: "Edit Elasticity data guide",
+      }),
+    ).toHaveFocus();
+    fireEvent.click(
+      within(draftCard as HTMLElement).getByRole("button", {
+        name: "Publish Elasticity data guide",
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Student courses" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open course" }));
+    fireEvent.click(screen.getByRole("button", { name: "Files" }));
+    const studentResourceCard = screen
+      .getByText("Elasticity data guide")
+      .closest("article");
+    expect(studentResourceCard).not.toBeNull();
+    expect(
+      within(studentResourceCard as HTMLElement).getByRole("link", {
+        name: "Open Elasticity data guide (external resource)",
+      }),
+    ).toHaveAttribute("href", "https://example.edu/economics/elasticity");
+  });
+
+  it("stages only local file metadata and keeps it out of student projection", () => {
+    render(createElement(App));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open course workspace" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Files" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add resource" }));
+    fireEvent.change(screen.getByLabelText("Resource type"), {
+      target: { value: "local-file" },
+    });
+    const file = new File(["synthetic image bytes"], "diagram.png", {
+      type: "image/png",
+      lastModified: 100,
+    });
+    fireEvent.change(screen.getByLabelText("Choose or replace local file"), {
+      target: { files: [file] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Remove selection" }));
+    expect(screen.getByLabelText("Choose or replace local file")).toHaveFocus();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Local file selection removed",
+    );
+    fireEvent.change(screen.getByLabelText("Choose or replace local file"), {
+      target: { files: [file] },
+    });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "A device-local draft diagram." },
+    });
+    fireEvent.change(screen.getByLabelText("Image alternative text"), {
+      target: { value: "Synthetic market diagram" },
+    });
+    expect(screen.getByAltText("Synthetic market diagram")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    const localCard = screen.getByText("diagram").closest("article");
+    expect(localCard).not.toBeNull();
+    expect(localCard).toHaveTextContent("Not uploaded · not student-visible");
+    expect(localCard).toHaveTextContent("Needs durable storage before release");
+    expect(
+      within(localCard as HTMLElement).queryByRole("button", {
+        name: "Publish",
+      }),
+    ).toBeNull();
+    const persisted = window.localStorage.getItem(MEDIA_STORAGE_KEY) ?? "";
+    expect(persisted).toContain("diagram.png");
+    expect(persisted).not.toContain("synthetic image bytes");
+    expect(persisted).not.toContain("blob:learning-loop-preview");
+
+    fireEvent.click(screen.getByRole("button", { name: "Student courses" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open course" }));
+    fireEvent.click(screen.getByRole("button", { name: "Files" }));
+    expect(screen.queryByText("diagram")).not.toBeInTheDocument();
+  });
+
+  it("keeps YouTube external until a learner explicitly loads the embed", () => {
+    render(createElement(App));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open course workspace" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Files" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add resource" }));
+    fireEvent.change(screen.getByLabelText("Resource type"), {
+      target: { value: "youtube" },
+    });
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "Market adjustment explainer" },
+    });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Teacher-selected external video resource." },
+    });
+    fireEvent.change(screen.getByLabelText("YouTube URL"), {
+      target: { value: "https://youtu.be/abcdefghijk" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    const teacherCard = screen
+      .getByText("Market adjustment explainer")
+      .closest("article");
+    fireEvent.click(
+      within(teacherCard as HTMLElement).getByRole("button", {
+        name: "Publish Market adjustment explainer",
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Student courses" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open course" }));
+    fireEvent.click(screen.getByRole("button", { name: "Files" }));
+    const studentCard = screen
+      .getByText("Market adjustment explainer")
+      .closest("article");
+    expect(
+      within(studentCard as HTMLElement).queryByTitle(
+        "Market adjustment explainer",
+      ),
+    ).toBeNull();
+    fireEvent.click(
+      within(studentCard as HTMLElement).getByRole("button", {
+        name: "Load YouTube embed for Market adjustment explainer",
+      }),
+    );
+    expect(
+      within(studentCard as HTMLElement).getByTitle(
+        "Market adjustment explainer",
+      ),
+    ).toHaveAttribute(
+      "src",
+      "https://www.youtube-nocookie.com/embed/abcdefghijk",
+    );
+    expect(
+      within(studentCard as HTMLElement).getByTitle(
+        "Market adjustment explainer",
+      ),
+    ).toHaveFocus();
+  });
+
+  it("makes archived resources read-only and discloses published edit withdrawal", () => {
+    render(createElement(App));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open course workspace" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Files" }));
+    const publishedCard = screen
+      .getByText("Price controls: synthetic guided reading")
+      .closest("article");
+    fireEvent.click(
+      within(publishedCard as HTMLElement).getByRole("button", {
+        name: "Edit Price controls: synthetic guided reading",
+      }),
+    );
+    expect(screen.getByText(/Saving changes withdraws/)).toBeVisible();
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Revised synthetic resource guidance." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Students no longer see this resource",
+    );
+
+    const revisedCard = screen
+      .getByText("Price controls: synthetic guided reading")
+      .closest("article");
+    fireEvent.click(
+      within(revisedCard as HTMLElement).getByRole("button", {
+        name: "Archive Price controls: synthetic guided reading",
+      }),
+    );
+    const archivedCard = screen
+      .getByText("Price controls: synthetic guided reading")
+      .closest("article");
+    expect(archivedCard).toHaveTextContent("Archived · read-only");
+    expect(
+      within(archivedCard as HTMLElement).queryByRole("button", {
+        name: /Edit|Archive/,
+      }),
+    ).toBeNull();
   });
 
   it("restores the complete teacher course route through browser history", () => {
@@ -433,7 +653,9 @@ describe("learning-loop prototype", () => {
     expect(screen.queryByText("Settings")).not.toBeInTheDocument();
 
     fireEvent.popState(window, { state: filesRoute });
-    expect(screen.getByRole("heading", { name: "Files" })).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "Files & media" }),
+    ).toBeVisible();
     expect(screen.getByRole("main")).toHaveFocus();
   });
 

@@ -8,6 +8,8 @@ The People prototype stores only fictional display names, profile IDs, course ro
 
 The Announcements prototype stores original/synthetic notice text, explicit course and audience scope, release lifecycle, and audit metadata in a separately versioned local snapshot. Student projection excludes drafts, archived notices, staff-only notices, and future scheduled notices. The prototype sends no email, push notification, or external message and collects no recipient contact details.
 
+The Files/media prototype persists only allowlisted course resource metadata. HTTPS links and validated YouTube IDs can be deliberately published. A browser-selected file remains a teacher-only local draft: its name, MIME type, byte count, modified time, title, description, and optional alternative text may persist, but file bytes, local paths, file handles, and blob/object URLs never do. Image preview URLs live only in component memory and are revoked on removal/unmount. Student projections omit all device-local drafts. YouTube content is not loaded until the learner explicitly chooses **Load YouTube embed**.
+
 Browser-selected image/file bytes remain on the device in the immediate course-shell milestone. The demo may retain allowlisted metadata and show an ephemeral same-session preview, but it must not claim that a file is uploaded, shared, backed up, or available to another device. Local paths, handles, object URLs, raw bytes, and unknown metadata never enter student projections or persistent local JSON.
 
 ## Pilot minimum
