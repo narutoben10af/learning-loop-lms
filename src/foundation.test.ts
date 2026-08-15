@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { App } from "./App";
+import { PEOPLE_STORAGE_KEY } from "./domain/people";
 
 function openTeacherComposer(): void {
   if (!screen.queryByRole("heading", { name: "My workspace" })) {
@@ -169,15 +170,8 @@ describe("learning-loop prototype", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "People" }));
     expect(screen.getByRole("heading", { name: "People" })).toBeVisible();
-    expect(
-      screen.getByText(/profiles, add people, invitations, and enrolment/i),
-    ).toBeVisible();
-    expect(
-      screen.queryByRole("button", { name: /add people/i }),
-    ).not.toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Return to course home" }),
-    );
+    expect(screen.getByRole("button", { name: "+ Add people" })).toBeVisible();
+    expect(screen.getByText("6 course members")).toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: "Modules" }));
     expect(
@@ -246,6 +240,86 @@ describe("learning-loop prototype", () => {
     fireEvent.popState(window, { state: filesRoute });
     expect(screen.getByRole("heading", { name: "Files" })).toBeVisible();
     expect(screen.getByRole("main")).toHaveFocus();
+  });
+
+  it("adds and persists a profile-linked local roster membership", () => {
+    render(createElement(App));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open course workspace" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "People" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add people" }));
+    expect(screen.getByLabelText("Display name")).toHaveFocus();
+    fireEvent.change(screen.getByLabelText("Display name"), {
+      target: { value: "Nadia Rahman" },
+    });
+    fireEvent.change(screen.getByLabelText("Course role"), {
+      target: { value: "student" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add pending record" }));
+
+    expect(screen.getByText("7 course members")).toBeVisible();
+    expect(screen.getByText("Nadia Rahman")).toBeVisible();
+    expect(screen.getByText("Pending activation")).toBeVisible();
+    expect(screen.getByRole("button", { name: "+ Add people" })).toHaveFocus();
+
+    cleanup();
+    render(createElement(App));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open course workspace" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "People" }));
+    expect(screen.getByText("Nadia Rahman")).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Student courses" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open course" }));
+    fireEvent.click(screen.getByRole("button", { name: "People" }));
+    expect(screen.getByText("Maya Chen")).toBeVisible();
+    expect(screen.queryByText("Nadia Rahman")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add people/i })).toBeNull();
+  });
+
+  it("falls back from malformed people storage without leaking unknown fields", () => {
+    window.localStorage.setItem(
+      PEOPLE_STORAGE_KEY,
+      JSON.stringify({
+        schemaVersion: 1,
+        organizationId: "learning-loop-demo-school",
+        profiles: [
+          {
+            id: "student-1",
+            organizationId: "learning-loop-demo-school",
+            displayName: "Injected profile",
+            preferredName: null,
+            status: "active",
+            revision: 1,
+            audit: {
+              createdBy: "owner-1",
+              createdAt: "2026-08-15T09:00:00.000Z",
+              updatedBy: "owner-1",
+              updatedAt: "2026-08-15T09:00:00.000Z",
+            },
+            secretNote: "must not cross projection",
+          },
+        ],
+        revision: 1,
+        audit: {
+          createdBy: "owner-1",
+          createdAt: "2026-08-15T09:00:00.000Z",
+          updatedBy: "owner-1",
+          updatedAt: "2026-08-15T09:00:00.000Z",
+        },
+      }),
+    );
+
+    render(createElement(App));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open course workspace" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "People" }));
+    expect(screen.getByText("Maya Chen")).toBeVisible();
+    expect(screen.queryByText("Injected profile")).not.toBeInTheDocument();
+    expect(screen.queryByText("must not cross projection")).toBeNull();
   });
 
   it("discloses the prebuilt interactive boundary at author and learner entry points", () => {

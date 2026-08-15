@@ -2305,6 +2305,136 @@ footer button {
   flex-wrap: wrap;
   gap: 0.6rem;
 }
+.people-shell {
+  max-width: 1120px;
+  padding-top: 2.5rem;
+}
+.people-hero {
+  align-items: end;
+  display: flex;
+  gap: 2rem;
+  justify-content: space-between;
+}
+.people-hero > div:first-child {
+  max-width: 720px;
+}
+.people-hero h1 {
+  font-size: clamp(2.5rem, 6vw, 4.6rem);
+}
+.add-person-panel,
+.people-directory,
+.my-course-profile {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 1.15rem;
+  box-shadow: var(--shadow);
+}
+.add-person-panel {
+  display: grid;
+  gap: 1.2rem 2rem;
+  grid-template-columns: minmax(0, 0.85fr) minmax(18rem, 1.15fr);
+  margin-top: 1.4rem;
+  padding: clamp(1.1rem, 3vw, 1.6rem);
+}
+.add-person-panel h2,
+.add-person-panel p {
+  margin-bottom: 0;
+}
+.add-person-fields {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: minmax(0, 1.4fr) minmax(12rem, 0.6fr);
+}
+.add-person-fields label,
+.people-tools label {
+  color: var(--muted);
+  display: grid;
+  font-size: 0.76rem;
+  font-weight: 800;
+  gap: 0.35rem;
+}
+.add-person-fields input,
+.add-person-fields select,
+.people-tools input,
+.people-tools select {
+  min-height: 2.75rem;
+  min-width: 0;
+  width: 100%;
+}
+.add-person-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  grid-column: 2;
+}
+.people-directory {
+  margin-top: 1.4rem;
+  padding: clamp(1.1rem, 3vw, 1.6rem);
+}
+.people-directory-heading {
+  align-items: end;
+}
+.people-tools {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: minmax(0, 1fr) minmax(12rem, 0.35fr);
+  margin-top: 1rem;
+}
+.people-list {
+  border-top: 1px solid var(--line);
+  margin-top: 1rem;
+}
+.person-row {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: 2.75rem minmax(0, 1fr) minmax(9rem, 0.45fr) auto;
+  min-height: 4.4rem;
+  padding: 0.8rem 0;
+}
+.profile-avatar {
+  align-items: center;
+  aspect-ratio: 1;
+  background: var(--ink);
+  border-radius: 0.8rem;
+  color: white;
+  display: inline-flex;
+  font-size: 0.72rem;
+  font-weight: 900;
+  justify-content: center;
+  width: 2.75rem;
+}
+.person-identity,
+.person-identity strong,
+.person-identity small {
+  display: block;
+  min-width: 0;
+}
+.person-identity small,
+.my-course-profile small {
+  color: var(--muted);
+  margin-top: 0.16rem;
+}
+.people-empty {
+  color: var(--muted);
+  padding: 1.4rem 0;
+}
+.student-people-hero {
+  align-items: stretch;
+}
+.my-course-profile {
+  align-items: center;
+  display: flex;
+  flex: 0 0 min(24rem, 42%);
+  gap: 0.9rem;
+  padding: 1.1rem;
+}
+.my-course-profile strong,
+.my-course-profile span,
+.my-course-profile small {
+  display: block;
+}
 
 @media (max-width: 1020px) {
   .course-workspace-frame {
@@ -2348,7 +2478,8 @@ footer button {
 
 @media (max-width: 780px) {
   .teacher-course-hero,
-  .course-action-callout {
+  .course-action-callout,
+  .people-hero {
     align-items: stretch;
     flex-direction: column;
   }
@@ -2359,8 +2490,17 @@ footer button {
     grid-template-columns: 1fr 1fr;
   }
   .teacher-course-home-grid,
-  .course-placeholder-card {
+  .course-placeholder-card,
+  .add-person-panel,
+  .add-person-fields,
+  .people-tools {
     grid-template-columns: 1fr;
+  }
+  .add-person-actions {
+    grid-column: 1;
+  }
+  .my-course-profile {
+    flex-basis: auto;
   }
   .module-item {
     align-items: start;
@@ -2381,15 +2521,27 @@ footer button {
 
 @media (max-width: 480px) {
   .teacher-course-primary-actions,
-  .course-placeholder-actions {
+  .course-placeholder-actions,
+  .add-person-actions {
     display: grid;
   }
   .teacher-course-primary-actions .button,
   .course-action-callout .button,
-  .course-placeholder-actions .button {
+  .course-placeholder-actions .button,
+  .add-person-actions .button,
+  .people-hero > .button {
     width: 100%;
   }
   .teacher-course-signals {
     grid-template-columns: 1fr;
+  }
+  .person-row {
+    align-items: start;
+    grid-template-columns: 2.75rem minmax(0, 1fr);
+  }
+  .person-row > :nth-child(3),
+  .person-row > :nth-child(4) {
+    grid-column: 2;
+    justify-self: start;
   }
 }

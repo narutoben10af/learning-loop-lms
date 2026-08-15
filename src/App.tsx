@@ -58,6 +58,16 @@ import {
   type WorkspaceMembership,
   type WorkspaceSnapshot,
 } from "./domain/workspace";
+import {
+  PEOPLE_STORAGE_KEY,
+  addCoursePerson,
+  createPeopleSnapshot,
+  createPersonProfile,
+  loadPeopleSnapshot,
+  projectCoursePeople,
+  savePeopleSnapshot,
+  type PeopleSnapshot,
+} from "./domain/people";
 import { EconomicsGraph } from "./graph/EconomicsGraph";
 import { ebikeMarketScenario } from "./graph/scenarios";
 import { CourseWorkspaceShell } from "./CourseWorkspaceShell";
@@ -71,6 +81,7 @@ import {
   type CreateCourseDraft,
   type WorkspaceCourseSummary,
 } from "./WorkspaceDashboard";
+import { CoursePeople } from "./CoursePeople";
 
 const predictionOptions: Array<{ value: Prediction; label: string }> = [
   { value: "price-down-quantity-up", label: "Price falls and quantity rises" },
@@ -316,10 +327,55 @@ function buildPilotWorkspaceSnapshot(): WorkspaceSnapshot {
     ),
     DEMO_NOW,
   );
+  for (let index = 1; index < demoStudents.length; index += 1) {
+    const principalId = `student-${index + 1}`;
+    snapshot = addWorkspaceMembership(
+      snapshot,
+      ownerActor,
+      demoMembership(
+        `membership-econ-10a-${principalId}`,
+        principalId,
+        "student",
+        draftPilot.course.id,
+      ),
+      DEMO_NOW,
+    );
+  }
   return snapshot;
 }
 
 const pilotWorkspaceSnapshot = buildPilotWorkspaceSnapshot();
+
+function buildPilotPeopleSnapshot(): PeopleSnapshot {
+  return createPeopleSnapshot(
+    DEMO_ORGANIZATION_ID,
+    ownerActor.principalId,
+    DEMO_NOW,
+    [
+      createPersonProfile({
+        id: teacherActor.principalId,
+        organizationId: DEMO_ORGANIZATION_ID,
+        displayName: "Amina Yusuf",
+        status: "active",
+        actorId: ownerActor.principalId,
+        now: DEMO_NOW,
+      }),
+      ...demoStudents.map(([displayName], index) =>
+        createPersonProfile({
+          id: `student-${index + 1}`,
+          organizationId: DEMO_ORGANIZATION_ID,
+          displayName,
+          preferredName: displayName.split(" ")[0],
+          status: "active",
+          actorId: ownerActor.principalId,
+          now: DEMO_NOW,
+        }),
+      ),
+    ],
+  );
+}
+
+const pilotPeopleSnapshot = buildPilotPeopleSnapshot();
 
 function loadAppWorkspace(storage: Storage): WorkspaceSnapshot {
   const loaded = loadWorkspaceSnapshot(storage, {
@@ -341,43 +397,40 @@ function loadAppWorkspace(storage: Storage): WorkspaceSnapshot {
   const hasPilot = loaded.workspace.courses.some(
     (course) => course.id === pilotCourseModel.course.id,
   );
-  const hasStudent = loaded.workspace.memberships.some(
-    (membership) =>
-      membership.courseId === pilotCourseModel.course.id &&
-      membership.principalId === studentActor.principalId &&
-      membership.role === "student" &&
-      membership.status === "active",
-  );
-  if (!hasPilot || hasStudent) return loaded;
-  const migrated = structuredClone(loaded);
+  const missingStudents = demoStudents
+    .map((_, index) => `student-${index + 1}`)
+    .filter(
+      (principalId) =>
+        !loaded.workspace.memberships.some(
+          (membership) =>
+            membership.courseId === pilotCourseModel.course.id &&
+            membership.principalId === principalId &&
+            membership.role === "student" &&
+            membership.status === "active",
+        ),
+    );
+  if (!hasPilot || !missingStudents.length) return loaded;
   const migrationAt = new Date(
     Math.max(
-      Date.parse(migrated.workspace.audit.updatedAt),
+      Date.parse(loaded.workspace.audit.updatedAt),
       Date.parse(DEMO_NOW),
     ),
   ).toISOString();
-  migrated.workspace.memberships.push({
-    ...demoMembership(
-      "membership-econ-10a-student-1",
-      studentActor.principalId,
-      "student",
-      pilotCourseModel.course.id,
-    ),
-    audit: {
-      createdBy: teacherActor.principalId,
-      createdAt: migrationAt,
-      updatedBy: teacherActor.principalId,
-      updatedAt: migrationAt,
-    },
-  });
-  migrated.workspace.revision += 1;
-  migrated.workspace.audit = {
-    ...migrated.workspace.audit,
-    updatedBy: teacherActor.principalId,
-    updatedAt: migrationAt,
-  };
-  assertValidWorkspaceSnapshot(migrated);
-  return migrated;
+  return missingStudents.reduce(
+    (snapshot, principalId) =>
+      addWorkspaceMembership(
+        snapshot,
+        teacherActor,
+        demoMembership(
+          `membership-econ-10a-${principalId}`,
+          principalId,
+          "student",
+          pilotCourseModel.course.id,
+        ),
+        migrationAt,
+      ),
+    loaded,
+  );
 }
 
 type DemoScreen =
@@ -2728,6 +2781,9 @@ export function App() {
   const [workspaceSnapshot, setWorkspaceSnapshot] = useState<WorkspaceSnapshot>(
     () => loadAppWorkspace(window.localStorage),
   );
+  const [peopleSnapshot, setPeopleSnapshot] = useState<PeopleSnapshot>(() =>
+    loadPeopleSnapshot(window.localStorage, pilotPeopleSnapshot),
+  );
   const [selectedCourseId, setSelectedCourseId] = useState(
     pilotCourseModel.course.id,
   );
@@ -2747,6 +2803,9 @@ export function App() {
   useEffect(() => {
     saveWorkspaceSnapshot(window.localStorage, workspaceSnapshot);
   }, [workspaceSnapshot]);
+  useEffect(() => {
+    savePeopleSnapshot(window.localStorage, peopleSnapshot);
+  }, [peopleSnapshot]);
   useEffect(() => {
     const onPopState = (event: PopStateEvent) => {
       const route = normalizeHistoryState(event.state);
@@ -2886,6 +2945,22 @@ export function App() {
   const studentSelectedCatalogueCourse = studentProjection.courses.find(
     (course) => course.id === selectedCourseId,
   );
+  const teacherPeopleProjection = teacherSelectedCatalogueCourse
+    ? projectCoursePeople(
+        peopleSnapshot,
+        workspaceSnapshot,
+        teacherActor,
+        selectedCourseId,
+      )
+    : null;
+  const studentPeopleProjection = studentSelectedCatalogueCourse
+    ? projectCoursePeople(
+        peopleSnapshot,
+        workspaceSnapshot,
+        studentActor,
+        selectedCourseId,
+      )
+    : null;
   const completedItemIds = new Set(
     state.submitted ? ["welcome", "supply-shock-activity"] : ["welcome"],
   );
@@ -3064,6 +3139,56 @@ export function App() {
     }
   };
 
+  const addPersonToSelectedCourse = (input: {
+    displayName: string;
+    role: "student" | "teaching-assistant";
+  }): string | null => {
+    const displayName = input.displayName.trim();
+    if (!displayName) return "Enter the person's display name.";
+    const baseId =
+      displayName
+        .toLocaleLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "") || "person";
+    let profileId = baseId;
+    let suffix = 2;
+    while (
+      peopleSnapshot.profiles.some((profile) => profile.id === profileId)
+    ) {
+      profileId = `${baseId}-${suffix}`;
+      suffix += 1;
+    }
+    const now = new Date(
+      Math.max(
+        Date.now(),
+        Date.parse(workspaceSnapshot.workspace.audit.updatedAt),
+        Date.parse(peopleSnapshot.audit.updatedAt),
+      ),
+    ).toISOString();
+    try {
+      const next = addCoursePerson(
+        peopleSnapshot,
+        workspaceSnapshot,
+        teacherActor,
+        {
+          profileId,
+          membershipId: `membership-${selectedCourseId}-${profileId}`,
+          courseId: selectedCourseId,
+          displayName,
+          role: input.role,
+          now,
+        },
+      );
+      setPeopleSnapshot(next.people);
+      setWorkspaceSnapshot(next.workspace);
+      return null;
+    } catch (error) {
+      return error instanceof Error
+        ? error.message
+        : "The roster record could not be added.";
+    }
+  };
+
   return (
     <>
       <PreviewHeader screen={screen} setScreen={setScreen} />
@@ -3149,17 +3274,24 @@ export function App() {
             onNavigate={navigateStudentCourse}
             onExit={() => setScreen("student-dashboard")}
           >
-            <CourseDestinationPlaceholder
-              destination={
-                courseDestination as Exclude<
-                  CourseDestination,
-                  "home" | "modules"
-                >
-              }
-              role="student"
-              onOpenModules={() => navigateStudentCourse("modules")}
-              onReturnHome={() => navigateStudentCourse("home")}
-            />
+            {courseDestination === "people" && studentPeopleProjection ? (
+              <CoursePeople
+                role="student"
+                projection={studentPeopleProjection}
+              />
+            ) : (
+              <CourseDestinationPlaceholder
+                destination={
+                  courseDestination as Exclude<
+                    CourseDestination,
+                    "home" | "modules"
+                  >
+                }
+                role="student"
+                onOpenModules={() => navigateStudentCourse("modules")}
+                onReturnHome={() => navigateStudentCourse("home")}
+              />
+            )}
           </CourseWorkspaceShell>
         )}
       {screen === "teacher-course-home" && teacherSelectedCatalogueCourse && (
@@ -3191,17 +3323,25 @@ export function App() {
             onNavigate={navigateTeacherCourse}
             onExit={() => setScreen("teacher-dashboard")}
           >
-            <CourseDestinationPlaceholder
-              destination={
-                courseDestination as Exclude<
-                  CourseDestination,
-                  "home" | "modules"
-                >
-              }
-              role="teacher"
-              onOpenModules={() => navigateTeacherCourse("modules")}
-              onReturnHome={() => navigateTeacherCourse("home")}
-            />
+            {courseDestination === "people" && teacherPeopleProjection ? (
+              <CoursePeople
+                role="teacher"
+                projection={teacherPeopleProjection}
+                onAddPerson={addPersonToSelectedCourse}
+              />
+            ) : (
+              <CourseDestinationPlaceholder
+                destination={
+                  courseDestination as Exclude<
+                    CourseDestination,
+                    "home" | "modules"
+                  >
+                }
+                role="teacher"
+                onOpenModules={() => navigateTeacherCourse("modules")}
+                onReturnHome={() => navigateTeacherCourse("home")}
+              />
+            )}
           </CourseWorkspaceShell>
         )}
       {screen === "teacher-student-preview" &&
@@ -3270,17 +3410,24 @@ export function App() {
             onNavigate={navigateTeacherStudentPreview}
             onExit={() => navigateTeacherCourse("home")}
           >
-            <CourseDestinationPlaceholder
-              destination={
-                courseDestination as Exclude<
-                  CourseDestination,
-                  "home" | "modules"
-                >
-              }
-              role="student"
-              onOpenModules={() => navigateTeacherStudentPreview("modules")}
-              onReturnHome={() => navigateTeacherStudentPreview("home")}
-            />
+            {courseDestination === "people" && studentPeopleProjection ? (
+              <CoursePeople
+                role="student"
+                projection={studentPeopleProjection}
+              />
+            ) : (
+              <CourseDestinationPlaceholder
+                destination={
+                  courseDestination as Exclude<
+                    CourseDestination,
+                    "home" | "modules"
+                  >
+                }
+                role="student"
+                onOpenModules={() => navigateTeacherStudentPreview("modules")}
+                onReturnHome={() => navigateTeacherStudentPreview("home")}
+              />
+            )}
           </CourseWorkspaceShell>
         )}
       {screen === "teacher-composer" && teacherSelectedCatalogueCourse && (
@@ -3321,7 +3468,9 @@ export function App() {
             dispatch({ type: "reset" });
             window.localStorage.removeItem(WORKSPACE_STORAGE_KEY);
             window.localStorage.removeItem(COURSE_STORAGE_KEY);
+            window.localStorage.removeItem(PEOPLE_STORAGE_KEY);
             setWorkspaceSnapshot(structuredClone(pilotWorkspaceSnapshot));
+            setPeopleSnapshot(structuredClone(pilotPeopleSnapshot));
             setSelectedCourseId(pilotCourseModel.course.id);
             setComposerDrafts({});
             window.history.replaceState(

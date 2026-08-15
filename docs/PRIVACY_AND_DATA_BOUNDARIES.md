@@ -4,6 +4,8 @@
 
 The current repository uses original synthetic Economics content, fictional learner names, and local browser storage. It must not receive real student records. Browser storage is for demo continuity, not a secure database or evidence record.
 
+The People prototype stores only fictional display names, profile IDs, course roles, membership lifecycle, and audit metadata in a separately versioned local snapshot. Teachers may create a pending local roster record without email or phone, but this does not create an account, send an invitation, or issue a production activation code. Student projection returns only the signed-in demo learner's own profile; it never exposes the teacher roster.
+
 Browser-selected image/file bytes remain on the device in the immediate course-shell milestone. The demo may retain allowlisted metadata and show an ephemeral same-session preview, but it must not claim that a file is uploaded, shared, backed up, or available to another device. Local paths, handles, object URLs, raw bytes, and unknown metadata never enter student projections or persistent local JSON.
 
 ## Pilot minimum
