@@ -537,6 +537,44 @@ describe("learning-loop prototype", () => {
     expect(screen.getByRole("heading", { name: "My workspace" })).toBeVisible();
   });
 
+  it("restores focus when course creation is cancelled", () => {
+    render(createElement(App));
+    const trigger = screen.getByRole("button", { name: "+ Create course" });
+    fireEvent.click(trigger);
+    expect(screen.getByLabelText("Course title")).toHaveFocus();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(trigger).toHaveFocus();
+    expect(screen.queryByLabelText("Course title")).not.toBeInTheDocument();
+  });
+
+  it("fails closed when history requests an unauthorised student course", () => {
+    render(createElement(App));
+    fireEvent.click(screen.getByRole("button", { name: "+ Create course" }));
+    fireEvent.change(screen.getByLabelText("Course title"), {
+      target: { value: "Private Teacher Draft" },
+    });
+    fireEvent.change(screen.getByLabelText("Course code"), {
+      target: { value: "PRIVATE-1" },
+    });
+    fireEvent.change(screen.getByLabelText("Class / section"), {
+      target: { value: "Staff" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Create private draft" }),
+    );
+    expect(screen.getByText("Private Teacher Draft")).toBeInTheDocument();
+
+    fireEvent.popState(window, {
+      state: { learningLoopScreen: "student-course" },
+    });
+
+    expect(screen.getByRole("heading", { name: "My courses" })).toBeVisible();
+    expect(screen.queryByText("Private Teacher Draft")).not.toBeInTheDocument();
+    expect(screen.queryByText("Demo entry")).not.toBeInTheDocument();
+  });
+
   it("reloads saved authored content from the versioned local model", () => {
     const view = render(createElement(App));
     openTeacherComposer();

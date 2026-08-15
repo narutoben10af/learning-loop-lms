@@ -43,6 +43,7 @@ export function WorkspaceDashboard({
   const [draft, setDraft] = useState<CreateCourseDraft>(emptyDraft);
   const [error, setError] = useState("");
   const titleRef = useRef<HTMLInputElement | null>(null);
+  const createTriggerRef = useRef<HTMLButtonElement | null>(null);
   const isTeacher = role === "teacher";
 
   useEffect(() => {
@@ -81,6 +82,7 @@ export function WorkspaceDashboard({
         </div>
         {isTeacher && projection.capabilities.canCreateCourse && (
           <button
+            ref={createTriggerRef}
             className="button primary workspace-create-button"
             type="button"
             aria-expanded={showCreate}
@@ -172,6 +174,7 @@ export function WorkspaceDashboard({
               onClick={() => {
                 setShowCreate(false);
                 setError("");
+                createTriggerRef.current?.focus();
               }}
             >
               Cancel

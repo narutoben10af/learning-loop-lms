@@ -32,6 +32,7 @@ import {
   reviseModuleItem,
   transitionReleaseState,
   type CourseModel,
+  type CourseProjection,
   type DomainRole,
   type LocalAttachmentMetadata,
   type Module,
@@ -376,6 +377,8 @@ type DemoScreen =
   | "student-dashboard"
   | "student-course"
   | "student-activity"
+  | "teacher-student-preview"
+  | "teacher-student-preview-activity"
   | "teacher-composer"
   | "teacher-evidence";
 
@@ -856,21 +859,15 @@ function ReflectionCard({ state, dispatch }: ActivityProps) {
 }
 
 function StudentCourseHome({
-  course,
+  projection,
   state,
   onOpenActivity,
 }: {
-  course: CourseModel;
+  projection: CourseProjection;
   state: ActivityState;
   onOpenActivity: () => void;
 }) {
   const progress = evidenceProgress(state);
-  const projection = projectCourse(course, "student", {
-    now: DEMO_NOW,
-    completedItemIds: new Set(
-      state.submitted ? ["welcome", "supply-shock-activity"] : ["welcome"],
-    ),
-  });
   const visibleModules = projection.modules;
   const lockedItemCount = visibleModules.reduce(
     (total, module) => total + module.lockedItemCount,
@@ -886,11 +883,11 @@ function StudentCourseHome({
         month: "short",
       })
     : "No scheduled release";
-  const isEconomicsPilot = course.course.id === pilotCourseModel.course.id;
+  const isEconomicsPilot = projection.course.id === pilotCourseModel.course.id;
   return (
     <main id="main-content" className="page-shell course-home-shell">
       <nav className="course-nav" aria-label="Student course navigation">
-        <span className="course-nav-title">{course.course.title}</span>
+        <span className="course-nav-title">{projection.course.title}</span>
         <span className="course-nav-links">
           <span className="course-nav-current" aria-current="page">
             Course home
@@ -904,12 +901,14 @@ function StudentCourseHome({
       </nav>
       <section className="course-hero">
         <div>
-          <p className="eyebrow">Student course · {course.course.subject}</p>
-          <h1>{course.course.title}</h1>
+          <p className="eyebrow">
+            Student course · {projection.course.subject}
+          </p>
+          <h1>{projection.course.title}</h1>
           <p className="hero-copy">
             {isEconomicsPilot
               ? "A clear path through market signals, policy choices, and data response. Your next step is ready when you are."
-              : course.course.status === "draft"
+              : projection.course.status === "draft"
                 ? "Student preview is empty until this private draft is deliberately activated and its first module is published."
                 : "Your teacher has arranged the available learning in one clear path."}
           </p>
@@ -930,7 +929,9 @@ function StudentCourseHome({
         <div>
           <span>Current focus</span>
           <strong>
-            {isEconomicsPilot ? "Market equilibrium" : course.course.subject}
+            {isEconomicsPilot
+              ? "Market equilibrium"
+              : projection.course.subject}
           </strong>
           <small>
             {isEconomicsPilot
@@ -1725,7 +1726,7 @@ function TeacherComposer({
           <button
             className="button primary"
             type="button"
-            onClick={() => setScreen("student-course")}
+            onClick={() => setScreen("teacher-student-preview")}
           >
             Preview as student
           </button>
@@ -2405,6 +2406,32 @@ export function App() {
     workspaceSnapshot.workspace,
     studentActor,
   );
+  const completedItemIds = new Set(
+    state.submitted ? ["welcome", "supply-shock-activity"] : ["welcome"],
+  );
+  const studentSelectedCourse = studentProjection.courses.some(
+    (course) => course.id === selectedCourseId,
+  )
+    ? workspaceSnapshot.courseModels.find(
+        (candidate) => candidate.course.id === selectedCourseId,
+      )
+    : undefined;
+  const studentSelectedCourseProjection = studentSelectedCourse
+    ? projectCourse(studentSelectedCourse, "student", {
+        now: DEMO_NOW,
+        completedItemIds,
+      })
+    : null;
+  const teacherCanPreviewSelectedCourse = teacherProjection.courses.some(
+    (course) =>
+      course.id === selectedCourseId && course.capabilities.canManageCourse,
+  );
+  const teacherStudentPreviewProjection = teacherCanPreviewSelectedCourse
+    ? projectCourse(selectedCourse, "student", {
+        now: DEMO_NOW,
+        completedItemIds,
+      })
+    : null;
   const teacherCourseSummaries = Object.fromEntries(
     teacherProjection.courses.map((course) => {
       const model = workspaceSnapshot.courseModels.find(
@@ -2433,11 +2460,7 @@ export function App() {
       const safeProjection = model
         ? projectCourse(model, "student", {
             now: DEMO_NOW,
-            completedItemIds: new Set(
-              state.submitted
-                ? ["welcome", "supply-shock-activity"]
-                : ["welcome"],
-            ),
+            completedItemIds,
           })
         : null;
       return [
@@ -2460,6 +2483,9 @@ export function App() {
     setScreen("teacher-composer");
   };
   const openStudentCourse = (courseId: string) => {
+    if (!studentProjection.courses.some((course) => course.id === courseId)) {
+      return;
+    }
     setSelectedCourseId(courseId);
     setScreen("student-course");
   };
@@ -2543,7 +2569,9 @@ export function App() {
           onCreateCourse={createWorkspaceCourse}
         />
       )}
-      {screen === "student-dashboard" && (
+      {(screen === "student-dashboard" ||
+        ((screen === "student-course" || screen === "student-activity") &&
+          !studentSelectedCourseProjection)) && (
         <WorkspaceDashboard
           role="student"
           projection={studentProjection}
@@ -2553,20 +2581,52 @@ export function App() {
           onCreateCourse={() => "Students cannot create courses."}
         />
       )}
-      {screen === "student-course" && (
+      {screen === "student-course" && studentSelectedCourseProjection && (
         <StudentCourseHome
-          course={selectedCourse}
+          projection={studentSelectedCourseProjection}
           state={state}
           onOpenActivity={() => setScreen("student-activity")}
         />
       )}
-      {screen === "student-activity" && (
+      {screen === "student-activity" && studentSelectedCourseProjection && (
         <StudentActivity
           state={state}
           dispatch={dispatch}
           onBack={() => setScreen("student-course")}
         />
       )}
+      {screen === "teacher-student-preview" &&
+        (teacherStudentPreviewProjection ? (
+          <StudentCourseHome
+            projection={teacherStudentPreviewProjection}
+            state={state}
+            onOpenActivity={() => setScreen("teacher-student-preview-activity")}
+          />
+        ) : (
+          <TeacherComposer
+            course={selectedCourse}
+            setCourse={setCourse}
+            setScreen={setScreen}
+            itemDrafts={composerDrafts}
+            setItemDrafts={setComposerDrafts}
+          />
+        ))}
+      {screen === "teacher-student-preview-activity" &&
+        (teacherStudentPreviewProjection ? (
+          <StudentActivity
+            state={state}
+            dispatch={dispatch}
+            onBack={() => setScreen("teacher-student-preview")}
+          />
+        ) : (
+          <TeacherComposer
+            course={selectedCourse}
+            setCourse={setCourse}
+            setScreen={setScreen}
+            itemDrafts={composerDrafts}
+            setItemDrafts={setComposerDrafts}
+          />
+        ))}
       {screen === "teacher-composer" && (
         <TeacherComposer
           course={selectedCourse}
