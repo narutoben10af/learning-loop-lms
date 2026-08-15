@@ -1126,6 +1126,9 @@ textarea {
   line-height: 1.4;
   margin-top: 0.25rem;
 }
+#modules-title {
+  scroll-margin-top: 6rem;
+}
 .interactive-template-notice {
   background: #f3f0fa;
   border: 1px solid #d9cfeb;

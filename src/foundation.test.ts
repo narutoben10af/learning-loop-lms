@@ -167,6 +167,18 @@ describe("learning-loop prototype", () => {
     );
     expect(screen.getByText("Next teaching action")).toBeVisible();
 
+    fireEvent.click(screen.getByRole("button", { name: "People" }));
+    expect(screen.getByRole("heading", { name: "People" })).toBeVisible();
+    expect(
+      screen.getByText(/profiles, add people, invitations, and enrolment/i),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: /add people/i }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Return to course home" }),
+    );
+
     fireEvent.click(screen.getByRole("button", { name: "Modules" }));
     expect(
       screen.getByRole("heading", {
@@ -228,7 +240,7 @@ describe("learning-loop prototype", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open activity" }));
 
     fireEvent.popState(window, { state: modulesRoute });
-    expect(screen.getByRole("heading", { name: "Modules" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Modules" })).toHaveFocus();
     expect(screen.queryByText("Settings")).not.toBeInTheDocument();
 
     fireEvent.popState(window, { state: filesRoute });
@@ -236,26 +248,28 @@ describe("learning-loop prototype", () => {
     expect(screen.getByRole("main")).toHaveFocus();
   });
 
-  it("discloses the predefined interactive template at author and learner entry points", () => {
+  it("discloses the prebuilt interactive boundary at author and learner entry points", () => {
     render(createElement(App));
     openStudentCourse();
 
-    expect(screen.getByText("Configurable interactive template")).toBeVisible();
+    expect(screen.getByText("Prebuilt interactive activity")).toBeVisible();
     expect(screen.getByText("Supply and demand explorer")).toBeVisible();
     expect(
       screen.getByText(
-        /interactive configuration is a planned template-builder capability; this pilot scenario is predefined/i,
+        /this pilot interaction is predefined. self-service template configuration is planned next/i,
       ),
     ).toBeVisible();
+    expect(
+      screen.queryByText("Configurable interactive template"),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Open activity" }));
     expect(screen.getByText("Supply and demand explorer")).toBeVisible();
 
     openTeacherComposer();
     expect(screen.getByText("Supply and demand explorer")).toBeVisible();
-    expect(
-      screen.getByText(/you can edit this item’s title and supporting text/i),
-    ).toBeVisible();
+    expect(screen.getByText(/editable now:/i)).toBeVisible();
+    expect(screen.getByText(/locked in this validated pilot:/i)).toBeVisible();
     expect(
       screen.queryByRole("button", { name: /configure interactive/i }),
     ).not.toBeInTheDocument();

@@ -1151,7 +1151,7 @@ const placeholderDetails: Record<
   people: {
     summary:
       "People will show course-scoped membership and roles without open registration or requiring student email addresses.",
-    next: "The next roster slice uses fictional local identities before any production enrolment work.",
+    next: "Profiles, Add people, invitations, and enrolment are not available in this pilot yet. The focused roster slice starts with fictional local identities; production onboarding later uses private one-time activation and audited recovery.",
   },
   pages: {
     summary:
@@ -1491,7 +1491,7 @@ function StudentActivity({
         </div>
         <div className="hero-meta">
           <span>8 min</span>
-          <span>Configurable interactive template</span>
+          <span>Prebuilt interactive activity</span>
           <span>Saved locally</span>
         </div>
       </section>
@@ -1565,7 +1565,7 @@ function itemAuthoringCapabilityLabel(
   item: Pick<ModuleItem, "id" | "type">,
 ): string {
   if (item.id === PREBUILT_INTERACTIVE_ITEM_ID) {
-    return "Configurable interactive template";
+    return "Prebuilt interactive activity";
   }
   if (item.type === "resource" || item.type === "video") {
     return "Imported/embed resource";
@@ -1580,18 +1580,19 @@ function PrebuiltInteractiveDisclosure({
 }) {
   return (
     <aside className={`interactive-template-notice ${audience}`}>
-      <span className="interactive-template-kind">Prebuilt pilot scenario</span>
+      <span className="interactive-template-kind">
+        Supply &amp; demand pilot
+      </span>
       <strong>Supply and demand explorer</strong>
       <p>
-        Interactive configuration is a planned template-builder capability; this
-        pilot scenario is predefined.
+        This pilot interaction is predefined. Self-service template
+        configuration is planned next.
       </p>
       {audience === "teacher" && (
         <small>
-          You can edit this item’s title and supporting text here. Curve rules,
-          feedback, ranges, and accessible alternatives stay with the validated
-          supply-and-demand pilot template for now. Changing the graph family or
-          curve configuration is not available in this pilot.
+          <strong>Editable now:</strong> title and supporting text.{" "}
+          <strong>Locked in this validated pilot:</strong> graph family, curve
+          rules, ranges, feedback, and accessible alternatives.
         </small>
       )}
     </aside>
@@ -2772,18 +2773,32 @@ export function App() {
   }, []);
   useLayoutEffect(() => {
     const main = document.getElementById("main-content");
-    if (main) {
-      main.tabIndex = -1;
-      main.focus({ preventScroll: true });
+    const shouldRevealModules =
+      (screen === "student-course" || screen === "teacher-student-preview") &&
+      courseDestination === "modules";
+    const modulesHeading = shouldRevealModules
+      ? document.getElementById("modules-title")
+      : null;
+    const focusTarget = modulesHeading ?? main;
+    if (focusTarget) {
+      focusTarget.tabIndex = -1;
+      focusTarget.focus({ preventScroll: true });
     }
     const resetScroll = () => {
       document.documentElement.scrollTop = 0;
       document.body.scrollTop = 0;
       if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
     };
-    resetScroll();
-    const frame = window.requestAnimationFrame(resetScroll);
-    const timeout = window.setTimeout(resetScroll, 50);
+    const settleRoute = () => {
+      if (modulesHeading) {
+        modulesHeading.scrollIntoView?.({ block: "start" });
+        return;
+      }
+      resetScroll();
+    };
+    settleRoute();
+    const frame = window.requestAnimationFrame(settleRoute);
+    const timeout = window.setTimeout(settleRoute, 50);
     return () => {
       window.cancelAnimationFrame(frame);
       window.clearTimeout(timeout);
@@ -2971,12 +2986,6 @@ export function App() {
   const navigateStudentCourse = (destination: CourseDestination) => {
     if (destination === "home" || destination === "modules") {
       setScreen("student-course", { destination });
-      if (destination === "modules") {
-        window.requestAnimationFrame(() => {
-          document.getElementById("modules-title")?.focus();
-          document.getElementById("modules-title")?.scrollIntoView();
-        });
-      }
     } else {
       setScreen("student-course-placeholder", { destination });
     }
@@ -2985,12 +2994,6 @@ export function App() {
   const navigateTeacherStudentPreview = (destination: CourseDestination) => {
     if (destination === "home" || destination === "modules") {
       setScreen("teacher-student-preview", { destination });
-      if (destination === "modules") {
-        window.requestAnimationFrame(() => {
-          document.getElementById("modules-title")?.focus();
-          document.getElementById("modules-title")?.scrollIntoView();
-        });
-      }
     } else {
       setScreen("teacher-student-preview-placeholder", { destination });
     }

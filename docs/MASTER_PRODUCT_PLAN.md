@@ -40,20 +40,20 @@ Students see their courses, due/available work, feedback, and private progress. 
 
 Every course uses one original, role-aware shell with these destinations:
 
-| Destination   | Teacher job                                                                                      | Student job                                                             | First implementation state                                       |
-| ------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| Home          | See teaching priorities, current learning sequence, draft/release issues, and review workload    | See the next learning action, recent feedback, and course progress      | Functional in the immediate course-shell milestone               |
-| Announcements | Draft, schedule, publish, edit, and archive course notices                                       | Read published notices in chronological context                         | Functional local/synthetic slice                                 |
-| Modules       | Compose, order, schedule, preview, and publish the learning sequence                             | Follow authorised items and completion requirements                     | Existing composer and Economics launch integrated into the shell |
-| Assignments   | Find canonical assessments, author settings/content, and manage release                          | See authorised assignment instructions, status, due dates, and attempts | Honest roadmap surface until assessment core lands               |
-| Quizzes       | Build versioned quizzes from the question bank and validate preview/release                      | Complete authorised attempts and receive configured feedback            | Honest roadmap surface until question-bank core lands            |
-| Grades        | Enter the needs-marking queue, mark with context, and control feedback release                   | See only released grades, feedback, and next actions                    | Honest roadmap surface until submissions/gradebook lands         |
-| People        | View authorised course membership and roles; later invite/activate through safe roster workflows | See only the class information policy permits                           | Functional synthetic roster; no production enrolment             |
-| Pages         | Find and edit learner-facing pages without losing module context                                 | Read published pages in the course navigator                            | Initial entries route to the real Module Composer/editor         |
-| Files         | Add, organise, preview, replace, and remove permissioned course media                            | Open only student-safe published file projections                       | Functional local-demo media library plus future storage contract |
-| Discussions   | Create structured prompts and moderation settings                                                | Participate within course policy                                        | Honest roadmap surface until communications delivery             |
-| Calendar      | Schedule releases, due dates, lessons, and exceptions                                            | See authorised course dates and availability                            | Readable course schedule first; full editing later               |
-| Settings      | Manage course identity, term, status, visibility, policies, and approved integrations            | No teacher settings                                                     | Functional course essentials first; advanced policy later        |
+| Destination   | Teacher job                                                                                      | Student job                                                             | First implementation state                                        |
+| ------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Home          | See teaching priorities, current learning sequence, draft/release issues, and review workload    | See the next learning action, recent feedback, and course progress      | Functional in the immediate course-shell milestone                |
+| Announcements | Draft, schedule, publish, edit, and archive course notices                                       | Read published notices in chronological context                         | Functional local/synthetic slice                                  |
+| Modules       | Compose, order, schedule, preview, and publish the learning sequence                             | Follow authorised items and completion requirements                     | Existing composer and Economics launch integrated into the shell  |
+| Assignments   | Find canonical assessments, author settings/content, and manage release                          | See authorised assignment instructions, status, due dates, and attempts | Honest roadmap surface until assessment core lands                |
+| Quizzes       | Build versioned quizzes from the question bank and validate preview/release                      | Complete authorised attempts and receive configured feedback            | Honest roadmap surface until question-bank core lands             |
+| Grades        | Enter the needs-marking queue, mark with context, and control feedback release                   | See only released grades, feedback, and next actions                    | Honest roadmap surface until submissions/gradebook lands          |
+| People        | View authorised course membership and roles; later invite/activate through safe roster workflows | See only the class information policy permits                           | Honest scope surface; functional roster is the next focused slice |
+| Pages         | Find and edit learner-facing pages without losing module context                                 | Read published pages in the course navigator                            | Initial entries route to the real Module Composer/editor          |
+| Files         | Add, organise, preview, replace, and remove permissioned course media                            | Open only student-safe published file projections                       | Functional local-demo media library plus future storage contract  |
+| Discussions   | Create structured prompts and moderation settings                                                | Participate within course policy                                        | Honest roadmap surface until communications delivery              |
+| Calendar      | Schedule releases, due dates, lessons, and exceptions                                            | See authorised course dates and availability                            | Readable course schedule first; full editing later                |
+| Settings      | Manage course identity, term, status, visibility, policies, and approved integrations            | No teacher settings                                                     | Functional course essentials first; advanced policy later         |
 
 Navigation labels may be combined or progressively disclosed on phones, but no visible destination may be a dead control or pretend to be complete. A roadmap destination explains what exists now, what does not, and links to the closest real workflow.
 
@@ -103,13 +103,14 @@ Deliver in focused PRs:
 1. **Workspace and course domain** — versioned organisation/workspace state, course list, role memberships, course status, create/select/archive-safe contracts, local migration and fail-closed validation.
 2. **Course dashboard** — first screen with active/draft courses, recent teaching signals, and a validated Create Course flow. Teachers receive author actions; students receive only authorised courses and learning signals.
 3. **Course shell and overview** — stable original navigation plus functional Home, Modules integration, and honest scoped destinations.
-4. **People and announcements** — synthetic roster projections with roles; local announcement draft/schedule/publish/archive behavior; student projection only after release.
-5. **Files and local media** — media-library entry, link/embed and browser-file draft metadata, image thumbnail preview where the browser provides an object URL, replace/remove, student-safe projection, and a storage adapter boundary.
+4. **People and profiles** — fictional profile and course-membership projections for teacher, teaching assistant, student, and parent/guardian roles; search/filter; clear Add people scope; no-email roster-to-private-activation contract; recovery/privacy/audit boundaries. No production invitation or enrolment is implied.
+5. **Announcements** — local draft/schedule/publish/archive behavior, explicit audience, and student projection only after release.
+6. **Files and local media** — media-library entry, link/embed and browser-file draft metadata, image thumbnail preview where the browser provides an object URL, replace/remove, student-safe projection, and a storage adapter boundary.
 
 Immediate acceptance criteria:
 
 - Opening the app starts at My workspace and a user can create, see, select, and return between multiple local synthetic courses.
-- A teacher enters a selected course and can use Home, People, Announcements, Files, and Modules without dead-end controls.
+- A teacher enters a selected course and can use Home and Modules. People, Announcements, and Files identify exactly what is not available and remain honest until their focused functional slices merge.
 - Assignments, Quizzes, Grades, Pages, Discussions, Calendar, and Settings are reachable, truthful about delivery state, and link to a working adjacent action where one exists.
 - Student and teacher projections are separate routes/surfaces. A student cannot reveal teacher navigation or raw data through client state.
 - The Economics activity remains launchable from its module and its completion evidence returns to the course view.
@@ -120,13 +121,17 @@ Immediate acceptance criteria:
 
 Goal: make a course teachable end to end without duplicate assessment state or fake grading.
 
-- Module Composer depth: module/item search, templates, deliberate duplication, batch schedule/publish with preview and audit, and direct evidence links.
+- Module Composer clarity and depth: a collapsed course outline with one active selection; ordering controls revealed on demand; one primary Add action with an accessible type picker; concise item summaries and secondary actions; one contextual edit panel; templates, deliberate duplication, batch schedule/publish with preview and audit, and direct evidence links. Move-To parity and lifecycle/availability remain visible without being repeated on every row.
 - Interactive template authoring: the four explicit capability classes—Rich content, Configurable interactive template, Imported/embed resource, and AI-assisted draft—plus a non-AI declarative builder for supply–demand, AS–AD, IS–LM, PPC/PPF, and pedagogical budget-constraint/indifference-curve activities. Shift activities retain a baseline and show the active curve/outcome separately. See the [interactive template contract](INTERACTIVE_TEMPLATE_CONTRACT.md).
-- Organisation question bank and assessment core: school-owned reusable questions with ownership/share permissions, metadata taxonomy, type, provenance, immutable versions, draft/review/publish workflow, import/export contract, and explicit linked-versus-copied course references. Canonical assessments add parts, attempts, grading-group projection, validation, preview isolation, and a release checklist.
+- Organisation question bank and assessment core: school-owned reusable questions with ownership/share permissions, metadata taxonomy, type, provenance, immutable versions, draft/review/publish workflow, import/export contract, and explicit linked-versus-copied course references. Canonical assessments add parts, attempts, grading-group projection, validation, preview isolation, and a release checklist. Objective MCQ, true/false, matching, fill/cloze, and calculation rules may autograde only against the released question version; short answers and essays remain in human review. Attempt policy, response/version evidence, regrade policy, and grade release are explicit. Any later rubric-backed AI suggestion is advisory until a teacher confirms it.
 - Submissions and detailed human marking: needs-marking queue, learner/question navigation, rubric, annotations/comments, interruption-safe draft save, retry/return, feedback release and notification.
-- Gradebook overview and controlled edits: real students-as-rows/items-as-columns state, totals/weights/visibility, pending/ungraded status, filters/sort/search, keyboard cells, accessible responsive alternative, and clear handoff to detailed marking. Grade adjustments require edit/save/cancel, range/scale validation, reason, immutable history, release state, and actor/time audit. CSV import/export stays a previewable future adapter seam.
+- Gradebook overview and controlled edits: course-membership/profile-linked students as rows and canonical assessed items as columns, totals/weights/visibility, pending/ungraded status, filters/sort/search, keyboard cells, accessible responsive alternative, and clear handoff to detailed marking. Grade adjustments require edit/save/cancel, range/scale validation, reason, immutable history, release state, and actor/time audit. No display-only name or orphan grade record is accepted.
+- Grade export contract: an authorised teacher may later preview and deliberately export an Excel-compatible CSV/XLSX snapshot for one course. The export defines fields, timestamp/timezone, weights/formula provenance, released/withheld state, and personal-data minimisation, then audits the export action. No third-party exchange or silent background export exists in the prototype.
+- Private learner reporting: a later **My learning / grades** workspace aggregates only the signed-in student's own active course memberships, released course grades and feedback, missing/upcoming work, and a clearly scoped aggregate. It never exposes another learner or an unpublished/withheld grade. Teacher Gradebook remains course-scoped by default; only specifically authorised school roles may later receive cohort/reporting projections. A parent/guardian sees only an explicitly authorised linked child's approved summary.
+- Formal report cards: organisation policy and accessible templates produce a versioned snapshot of authorised grades, attendance, teacher comments, and calculation provenance. A teacher reviews it before an authorised release; correction, retention, withdrawal/revocation, and accessible PDF generation are explicit lifecycle events. The platform never invents or automatically finalises a grade without the organisation's stated policy.
 - Course duplication and rollover: preview an explicit safe-copy manifest, create a new private course identity/owner/audit/term, and verify source/destination isolation. Never copy memberships, submissions, grades, feedback, attendance, credentials, private drafts, or old audit history.
-- Roster and attendance: teacher-created roster; private activation contract; present/late/absent/excused/remote lesson records; mark-all-present then exceptions; audit.
+- Course schedule: course-scoped recurrence/frequency, weekday set, start/end time, term date range, timezone, holiday/no-class exceptions, one-off cancellation/reschedule/makeup events, and manual ad-hoc sessions generate expected sessions predictably. Holiday and cancelled exceptions generate no class. Institution policy later supplies holiday sources and attendance calculations; local/sample schedules remain visibly synthetic. A replaceable audited calendar connector may synchronise later but is never required for core scheduling.
+- Roster and attendance: after People/membership contracts, a teacher opens an actual scheduled or manual course session and marks the profile-linked roster present, late, absent, excused, or remote, with notes, actor/time audit, and safe correction history. Students see only their own attendance; a parent/guardian later sees only an authorised linked child's approved attendance. No global timetable may blend unrelated course data.
 - Communications and resources: discussions, messaging/notifications, authorised article/video resources, disclosed engagement evidence and retention.
 
 ### Milestone 3 — Production platform and optional extensions
@@ -150,14 +155,14 @@ No live AI provider, MCP server, billing, parent portal, public registration, Ca
 
 Production access is enforced in backend application services. UI projections reduce accidental exposure but are not authorization.
 
-| Role                       | Default scope                                                                                                |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Platform owner             | Explicit platform operations only; no automatic private submission access                                    |
-| Organisation administrator | Organisation configuration, approved reporting, roster administration, and policy within the assigned tenant |
-| Teacher                    | Assigned courses, authoring, roster operations, learning evidence, marking, and release controls             |
-| Teaching assistant         | Explicit course capabilities delegated by a teacher/administrator; no implicit full-teacher access           |
-| Student                    | Enrolled courses, published/available content, own work, own released feedback and private progress          |
-| Parent/guardian            | Linked children and only school-approved summaries/resources; no default authoring or class-wide access      |
+| Role                       | Default scope                                                                                                                                     |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Platform owner             | Explicit platform operations only; no automatic private submission access                                                                         |
+| Organisation administrator | Organisation configuration, approved reporting, roster administration, and policy within the assigned tenant                                      |
+| Teacher                    | Assigned courses, authoring, roster operations, learning evidence, marking, and release controls                                                  |
+| Teaching assistant         | Explicit course capabilities delegated by a teacher/administrator; no implicit full-teacher access                                                |
+| Student                    | Own active memberships, published/available content, own work, own released grades/feedback and private progress; never another learner's records |
+| Parent/guardian            | Explicitly linked children and only authorised, school-approved summaries/resources; no default authoring or class-wide access                    |
 
 Every projection and later API call binds organisation, principal, course, relationship, object, action, and purpose. Material actions—publication, grades, attendance, enrolment, invitations, permissions, and file sharing—are scoped and audited; sensitive bulk actions require explicit confirmation.
 
@@ -171,9 +176,12 @@ Every projection and later API call binds organisation, principal, course, relat
 - **Content and media:** pages, resources, file/image/video metadata, accessibility descriptions, ownership, storage reference, publication projection.
 - **Communication:** announcements, discussion topics/posts, audience, moderation, schedule, notification intent.
 - **Question bank and assessment:** organisation-owned question identity/version, ownership/share scope, subject/topic/level/standard/type/source metadata, link/copy reference policy, canonical assessment identity, content versions, taxonomy separate from grading group, release checklist, attempts, accommodations, and import/export mapping.
-- **Evidence and grading:** immutable submissions/attempts, response evidence, rubric decisions, grade records/status, append-only adjustments with actor/time/reason, totals/weight policy, feedback release, notification and audit as separate records.
+- **Evidence and grading:** immutable submissions/attempts, released question-version evidence, profile plus active course-membership references, rubric decisions, grade records/status, append-only adjustments with actor/time/reason, totals/weight policy, feedback release, notification and audit as separate records.
+- **Learner reporting:** role-scoped released-grade projection across a learner's own active memberships, missing/upcoming work, calculation provenance, and withheld-state filtering; parent and cohort projections are separate authorised contracts.
+- **Report cards and exports:** policy/template identity, immutable snapshot and calculation version, reviewer/releaser, correction/revocation lifecycle, accessible PDF artefact reference, retention, minimised export schema, timestamp/timezone, and export audit.
 - **Course duplication:** an audited command and copy manifest that creates new identities and selectively references/copies safe definitions while excluding people and historical evidence by construction.
-- **Schedule and attendance:** course events, due/availability windows, lesson sessions and auditable attendance records.
+- **Course schedule:** course identity, timezone, recurrence rule, weekday/time, term range, holiday/no-class exception source, one-off cancellation/reschedule/makeup, manual session, expected-session provenance, and immutable occurrence identity. Session generation is deterministic and course-bound.
+- **Attendance:** scheduled/manual course-session identity plus active profile/membership reference, present/late/absent/excused/remote status, note policy, calculation policy reference, actor/time audit, and append-only correction. Student and linked-parent projections never cross the course/person relationship.
 
 Domain services expose role-bound projections; browser components do not infer visibility from raw records.
 
@@ -206,7 +214,6 @@ file storage, calendar/video/communication, SSO/identity, grade
 passback/import/export, notifications, analytics, AI, and MCP each use a typed,
 replaceable, permissioned, audited adapter. The teacher can understand the
 scope, data, provider status, material effect, and revocation path before using
-one. See [Integration Boundaries](INTEGRATION_BOUNDARIES.md) for the contract
 map. No live adapter, credential, provider account, paid service, or student-data
 exchange is part of the local course-workspace milestone.
 

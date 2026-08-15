@@ -31,9 +31,12 @@ Every module item declares one teacher-visible authoring capability:
    provider, provenance, validation, review, entitlement, and cost/availability
    state. It is never a publishable category by itself.
 
-The current item `supply-shock-activity` is category 2. The pilot UI exposes the
-template name and warns that interaction configuration is planned and the
-scenario is predefined. It offers no fake configuration control.
+The future self-service builder produces category 2 items. Until that builder
+exists, the current `supply-shock-activity` item is labelled **Prebuilt
+interactive activity** and **Supply & demand pilot**. Its title and supporting
+text are editable, while the validated graph family, curve rules, ranges,
+feedback, and accessible alternatives are visibly locked. The pilot offers no
+fake configuration control.
 
 ## Declarative model boundary
 
