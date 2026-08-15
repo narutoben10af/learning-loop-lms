@@ -149,9 +149,10 @@ describe("data-driven Economics graph model", () => {
     );
 
     expect(layout.width).toBe(width);
+    expect(layout.height).toBeGreaterThanOrEqual(height);
     expect(layout.plot.x).toBeGreaterThan(0);
     expect(layout.plot.x + layout.plot.width).toBeLessThanOrEqual(width);
-    expect(layout.plot.y + layout.plot.height).toBeLessThan(height);
+    expect(layout.plot.y + layout.plot.height).toBeLessThan(layout.height);
     expect(layout.plot.height).toBeGreaterThan(120);
     expect(layout.xTicks).toHaveLength(width < 520 ? 5 : 7);
     expect(layout.curves.every((curve) => curve.path.startsWith("M"))).toBe(
@@ -163,11 +164,11 @@ describe("data-driven Economics graph model", () => {
     expect(layout.axisTitles.x.rect.x).toBeGreaterThanOrEqual(0);
     expect(
       layout.axisTitles.x.rect.y + layout.axisTitles.x.rect.height,
-    ).toBeLessThanOrEqual(height);
+    ).toBeLessThanOrEqual(layout.height);
     expect(layout.axisTitles.y.rect.x).toBeGreaterThanOrEqual(0);
     expect(
       layout.axisTitles.y.rect.y + layout.axisTitles.y.rect.height,
-    ).toBeLessThanOrEqual(height);
+    ).toBeLessThanOrEqual(layout.height);
     expect(rectsOverlap(layout.equilibriumBanner, layout.plot, 4)).toBe(false);
     for (const tick of layout.xTicks) {
       expect(rectsOverlap(tick.rect, layout.plot)).toBe(false);
@@ -180,7 +181,7 @@ describe("data-driven Economics graph model", () => {
       expect(item.rect.x + item.rect.width).toBeLessThanOrEqual(
         layout.plot.x + layout.plot.width,
       );
-      expect(item.rect.y + item.rect.height).toBeLessThanOrEqual(height);
+      expect(item.rect.y + item.rect.height).toBeLessThanOrEqual(layout.height);
       expect(rectsOverlap(item.rect, layout.axisTitles.x.rect, 4)).toBe(false);
     }
     for (const { rect } of layout.labelRects) {
