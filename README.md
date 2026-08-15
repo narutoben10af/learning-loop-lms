@@ -13,13 +13,15 @@ Learning Loop is an experimental, learning-first LMS growing from one validated 
 
 - Responsive web prototype using original, synthetic Economics content.
 - A reusable, declarative Economics graph renderer, initially exercised with a supply-shift scenario.
+- An accurately labelled predefined **Supply and demand explorer** template. Its title/supporting text are editable today; the non-AI declarative template builder is a planned focused slice, not a fake live control.
 - Equivalent pointer, keyboard, button, and table-based interactions.
 - Separate student activity and teacher evidence/marking experiences. A clearly labelled preview switch exists only for author/demo QA.
 - A role-projected **My workspace** course dashboard with teacher course creation/selection and a clean student course list. New courses begin as private local drafts.
+- An original responsive course workspace with stable role-aware navigation, a teaching-action Home, integrated Modules authoring/student learning, and truthful scoped states for course operations still to come.
 - A teacher-only Module Composer with contextual editing for pages, learning blocks, resources, videos, and honest draft-only assessment handoffs.
 - Minimal private mastery evidence tied to demonstrated outcomes, not time, streaks, or public ranking.
 
-The current build now starts at **My workspace** and supports local multi-course creation/selection, but it is still not a complete LMS. The next milestone delivers a real course shell with functional Home, People, Announcements, Files, and Modules. See the [canonical master product plan](docs/MASTER_PRODUCT_PLAN.md) for the honest gap assessment, information architecture, and phase boundaries.
+The current build starts at **My workspace**, supports local multi-course creation/selection, and opens each selected course into a recognisable Home/Modules workspace. It is still not a complete LMS: People, Announcements, and Files are the next functional slices, while the remaining named course areas disclose their current limits. See the [canonical master product plan](docs/MASTER_PRODUCT_PLAN.md) for the honest gap assessment, information architecture, and phase boundaries.
 
 Not included: payments, live AI or model-provider calls, a live MCP server, native Flutter apps, Canvas integration, parent access, attendance, public registration, remote proctoring, Python execution, or copied exam content.
 
@@ -48,7 +50,7 @@ later: web / Flutter
      -> optional premium AI-job service (draft-only provider adapters)
 ```
 
-See the [master product plan](docs/MASTER_PRODUCT_PLAN.md), [architecture decisions](docs/ARCHITECTURE_DECISIONS.md), [integration boundaries](docs/INTEGRATION_BOUNDARIES.md), the [approved Economics UX contract](docs/ECONOMICS_VERTICAL_SLICE_UX_BRIEF.md), the [teacher authoring/operations track](docs/TEACHER_AUTHORING_OPERATIONS.md), the [current Module Composer authoring slice](docs/AUTHORING.md), and the [PR delivery register](docs/PR_PLAN.md).
+See the [master product plan](docs/MASTER_PRODUCT_PLAN.md), [architecture decisions](docs/ARCHITECTURE_DECISIONS.md), [integration boundaries](docs/INTEGRATION_BOUNDARIES.md), [interactive template authoring contract](docs/INTERACTIVE_TEMPLATE_CONTRACT.md), the [approved Economics UX contract](docs/ECONOMICS_VERTICAL_SLICE_UX_BRIEF.md), the [teacher authoring/operations track](docs/TEACHER_AUTHORING_OPERATIONS.md), the [current Module Composer authoring slice](docs/AUTHORING.md), and the [PR delivery register](docs/PR_PLAN.md).
 
 ## Local setup
 
@@ -77,7 +79,7 @@ Do not enter real student information into the prototype. The pilot requires no 
 
 ## Roadmap
 
-Delivery is deliberately split into small PRs. The active milestone is now the real LMS shell: workspace/course domain, course dashboard and creation, course overview/navigation, People, Announcements, Files/media, and integration of the existing Modules/Economics work. Assessment/question-bank, submissions/marking, gradebook, roster/attendance, and communications follow. Production auth/storage, plugins, analytics, mobile, parents, MCP, and premium AI remain later phases after permissions and domain APIs are validated.
+Delivery is deliberately split into small PRs. The active milestone is now the real LMS shell: workspace/course domain, course dashboard and creation, course overview/navigation, People, Announcements, Files/media, and integration of the existing Modules/Economics work. Self-service interactive templates, organisation-level question bank and assessments, detailed marking, a real Gradebook, safe course rollover, roster/attendance, and communications follow as focused slices. Production auth/storage, plugins, analytics, mobile, parents, MCP, and premium AI remain later phases after permissions and domain APIs are validated.
 
 ## Contributing and licence
 

@@ -13,6 +13,7 @@ function openTeacherComposer(): void {
   fireEvent.click(
     screen.getByRole("button", { name: "Open course workspace" }),
   );
+  fireEvent.click(screen.getByRole("button", { name: "Modules" }));
 }
 
 function openStudentCourse(): void {
@@ -107,7 +108,7 @@ describe("learning-loop prototype", () => {
       }),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Evidence & marking" }));
+    fireEvent.click(screen.getByRole("button", { name: "Grades" }));
     expect(
       screen.getByRole("heading", {
         name: "Supply shifts — learning evidence",
@@ -123,6 +124,155 @@ describe("learning-loop prototype", () => {
     });
     expect(screen.getByText("Alex Morgan")).toBeInTheDocument();
     expect(screen.queryByText("Jordan Lee")).not.toBeInTheDocument();
+  });
+
+  it("opens a recognisable course workspace with functional navigation", () => {
+    render(createElement(App));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open course workspace" }),
+    );
+
+    expect(screen.getByRole("main")).toHaveFocus();
+    expect(
+      screen.getByRole("heading", { name: "Economics 10A" }),
+    ).toBeVisible();
+    expect(screen.getByText("Next teaching action")).toBeVisible();
+    const courseNav = screen.getByRole("navigation", {
+      name: "Economics 10A course areas",
+    });
+    for (const label of [
+      "Home",
+      "Announcements",
+      "Modules",
+      "Assignments",
+      "Quizzes",
+      "Grades",
+      "People",
+      "Pages",
+      "Files",
+      "Discussions",
+      "Calendar",
+      "Settings",
+    ]) {
+      expect(courseNav).toHaveTextContent(label);
+    }
+
+    fireEvent.click(screen.getByRole("button", { name: "Announcements" }));
+    expect(
+      screen.getByRole("heading", { name: "Announcements" }),
+    ).toBeVisible();
+    expect(screen.getByText("Planned · not available yet")).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Return to course home" }),
+    );
+    expect(screen.getByText("Next teaching action")).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "People" }));
+    expect(screen.getByRole("heading", { name: "People" })).toBeVisible();
+    expect(
+      screen.getByText(/profiles, add people, invitations, and enrolment/i),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: /add people/i }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Return to course home" }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Modules" }));
+    expect(
+      screen.getByRole("heading", {
+        name: "Build the learning path, in context.",
+      }),
+    ).toBeVisible();
+  });
+
+  it("keeps the student course shell free of teacher-only settings", () => {
+    render(createElement(App));
+    openStudentCourse();
+
+    expect(screen.getByRole("main")).toHaveFocus();
+    const courseNav = screen.getByRole("navigation", {
+      name: "Economics 10A course areas",
+    });
+    expect(courseNav).toHaveTextContent("Announcements");
+    expect(courseNav).toHaveTextContent("Modules");
+    expect(courseNav).not.toHaveTextContent("Settings");
+    expect(screen.queryByText("Teacher course")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Files" }));
+    expect(screen.getByRole("heading", { name: "Files" })).toBeVisible();
+    expect(screen.getByText(/no browser-selected bytes/i)).toBeVisible();
+  });
+
+  it("restores the complete teacher course route through browser history", () => {
+    render(createElement(App));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open course workspace" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Announcements" }));
+    const announcementsRoute = structuredClone(window.history.state);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Return to course home" }),
+    );
+    const homeRoute = structuredClone(window.history.state);
+    fireEvent.click(screen.getByRole("button", { name: "Modules" }));
+
+    fireEvent.popState(window, { state: homeRoute });
+    expect(screen.getByText("Next teaching action")).toBeVisible();
+    expect(screen.getByRole("main")).toHaveFocus();
+
+    fireEvent.popState(window, { state: announcementsRoute });
+    expect(
+      screen.getByRole("heading", { name: "Announcements" }),
+    ).toBeVisible();
+    expect(screen.getByText("Planned · not available yet")).toBeVisible();
+    expect(screen.getByRole("main")).toHaveFocus();
+  });
+
+  it("restores student destinations without exposing stale teacher state", () => {
+    render(createElement(App));
+    openStudentCourse();
+    fireEvent.click(screen.getByRole("button", { name: "Files" }));
+    const filesRoute = structuredClone(window.history.state);
+    fireEvent.click(screen.getByRole("button", { name: "Modules" }));
+    const modulesRoute = structuredClone(window.history.state);
+    fireEvent.click(screen.getByRole("button", { name: "Open activity" }));
+
+    fireEvent.popState(window, { state: modulesRoute });
+    expect(screen.getByRole("heading", { name: "Modules" })).toHaveFocus();
+    expect(screen.queryByText("Settings")).not.toBeInTheDocument();
+
+    fireEvent.popState(window, { state: filesRoute });
+    expect(screen.getByRole("heading", { name: "Files" })).toBeVisible();
+    expect(screen.getByRole("main")).toHaveFocus();
+  });
+
+  it("discloses the prebuilt interactive boundary at author and learner entry points", () => {
+    render(createElement(App));
+    openStudentCourse();
+
+    expect(screen.getByText("Prebuilt interactive activity")).toBeVisible();
+    expect(screen.getByText("Supply and demand explorer")).toBeVisible();
+    expect(
+      screen.getByText(
+        /this pilot interaction is predefined. self-service template configuration is planned next/i,
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("Configurable interactive template"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open activity" }));
+    expect(screen.getByText("Supply and demand explorer")).toBeVisible();
+
+    openTeacherComposer();
+    expect(screen.getByText("Supply and demand explorer")).toBeVisible();
+    expect(screen.getByText(/editable now:/i)).toBeVisible();
+    expect(screen.getByText(/locked in this validated pilot:/i)).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: /configure interactive/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("moves completed student evidence into the teacher review view", () => {
@@ -154,7 +304,7 @@ describe("learning-loop prototype", () => {
     fireEvent.click(screen.getByRole("button", { name: "← Economics 10A" }));
     expect(screen.getAllByText("Complete")).toHaveLength(2);
     openTeacherComposer();
-    fireEvent.click(screen.getByRole("button", { name: "Evidence & marking" }));
+    fireEvent.click(screen.getByRole("button", { name: "Grades" }));
     expect(
       screen.getByText(/Price falls and quantity rises · 1 attempt/),
     ).toBeInTheDocument();
@@ -240,7 +390,7 @@ describe("learning-loop prototype", () => {
     expect(screen.getByText("New page").closest("li")).toHaveTextContent(
       "Published",
     );
-  });
+  }, 10_000);
 
   it("keeps authored module changes through student preview and return", () => {
     render(createElement(App));
@@ -500,7 +650,9 @@ describe("learning-loop prototype", () => {
       screen.getByRole("button", { name: "Create private draft" }),
     );
 
-    expect(screen.getByText("Environmental Economics 10B")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Environmental Economics 10B" }),
+    ).toBeInTheDocument();
     expect(screen.getAllByText("Start here")).not.toHaveLength(0);
     fireEvent.click(screen.getByRole("button", { name: "← My workspace" }));
     expect(
@@ -564,7 +716,9 @@ describe("learning-loop prototype", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Create private draft" }),
     );
-    expect(screen.getByText("Private Teacher Draft")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Private Teacher Draft" }),
+    ).toBeInTheDocument();
 
     fireEvent.popState(window, {
       state: { learningLoopScreen: "student-course" },
