@@ -1781,13 +1781,13 @@ function TeacherComposer({
                         item.type === "assignment" ||
                         item.type === "quiz" ||
                         !item.content ||
-                        editingItemId === item.id
+                        Boolean(itemDrafts[item.id])
                       }
                       onClick={() => setItemState(item, "published")}
                     >
                       {item.type === "assignment" || item.type === "quiz"
                         ? "Builder required"
-                        : !item.content || editingItemId === item.id
+                        : !item.content || itemDrafts[item.id]
                           ? "Save content first"
                           : "Publish"}
                     </button>

@@ -1162,6 +1162,9 @@ export function validateCourseModel(model: CourseModel): string[] {
           `item ${item.id}.content`,
         );
       }
+      if (item.state === "published" && !item.content) {
+        issues.push(`item ${item.id}: published items require saved content`);
+      }
       if (
         item.state === "published" &&
         (item.type === "assignment" || item.type === "quiz")
@@ -1241,7 +1244,8 @@ export function projectCourse(
     const visibleItems = orderedItems.filter((item) =>
       role === "teacher"
         ? item.state !== "archived"
-        : item.type !== "assignment" &&
+        : item.content !== undefined &&
+          item.type !== "assignment" &&
           item.type !== "quiz" &&
           isAvailable(
             item.state,
@@ -1254,6 +1258,7 @@ export function projectCourse(
     const lockedItems =
       role === "student"
         ? orderedItems.filter((item) => {
+            if (!item.content) return false;
             if (item.type === "assignment" || item.type === "quiz") {
               return false;
             }

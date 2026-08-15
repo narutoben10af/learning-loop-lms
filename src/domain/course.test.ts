@@ -565,6 +565,13 @@ describe("course/module domain", () => {
       position: 0,
       state: "published",
       availability: { startsAt: "2026-08-22T09:00:00.000Z", endsAt: null },
+      content: {
+        kind: "resource",
+        description: "A scheduled reading.",
+        resourceType: "article",
+        url: "https://example.edu/scheduled",
+        localAttachment: null,
+      },
       actorId: "teacher-1",
       now,
     });
@@ -591,6 +598,13 @@ describe("course/module domain", () => {
         startsAt: "2026-08-10T09:00:00.000Z",
         endsAt: "2026-08-14T09:00:00.000Z",
       },
+      content: {
+        kind: "resource",
+        description: "An expired reading.",
+        resourceType: "article",
+        url: "https://example.edu/expired",
+        localAttachment: null,
+      },
       actorId: "teacher-1",
       now,
     });
@@ -603,6 +617,13 @@ describe("course/module domain", () => {
       position: 3,
       state: "published",
       prerequisiteItemIds: ["teacher-draft"],
+      content: {
+        kind: "resource",
+        description: "A prerequisite reading.",
+        resourceType: "article",
+        url: "https://example.edu/prerequisite",
+        localAttachment: null,
+      },
       actorId: "teacher-1",
       now,
     });
@@ -771,5 +792,36 @@ describe("course/module domain", () => {
     expect(
       issues.some((issue) => issue.includes("module market-shifts.audit")),
     ).toBe(true);
+  });
+
+  it("fails closed for published items missing learner content", () => {
+    const source = model();
+    const invalid: CourseModel = {
+      ...source,
+      items: [
+        { ...source.items[0], content: undefined },
+        {
+          ...source.items[1],
+          id: "missing-resource-content",
+          type: "resource",
+          position: 1,
+          content: undefined,
+        },
+        {
+          ...source.items[1],
+          id: "missing-video-content",
+          type: "video",
+          position: 2,
+          content: undefined,
+        },
+      ],
+    };
+    const issues = validateCourseModel(invalid);
+    expect(
+      issues.filter((issue) => issue.includes("require saved content")),
+    ).toHaveLength(3);
+    expect(() => projectCourse(invalid, "student", { now })).toThrow(
+      /published items require saved content/,
+    );
   });
 });

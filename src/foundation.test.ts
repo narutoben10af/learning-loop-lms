@@ -260,6 +260,43 @@ describe("learning-loop prototype", () => {
     expect(editButtons[editButtons.length - 1]).toHaveFocus();
   });
 
+  it("keeps publish blocked while a preserved draft differs from saved content", () => {
+    render(createElement(App));
+    fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Page" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Title" }), {
+      target: { value: "Stable page" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save content" }));
+
+    const firstEditButtons = screen.getAllByRole("button", {
+      name: "Edit content",
+    });
+    fireEvent.click(firstEditButtons[firstEditButtons.length - 1]);
+    fireEvent.change(screen.getByLabelText("Body"), {
+      target: { value: "An unsaved revision should not release yet." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Student course" }));
+    fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
+
+    expect(
+      screen.getByRole("button", { name: "Save content first" }),
+    ).toBeDisabled();
+    const resumedEditButtons = screen.getAllByRole("button", {
+      name: "Edit content",
+    });
+    fireEvent.click(resumedEditButtons[resumedEditButtons.length - 1]);
+    expect(screen.getByLabelText("Body")).toHaveValue(
+      "An unsaved revision should not release yet.",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save content" }));
+    fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+    fireEvent.click(screen.getByRole("button", { name: "Student course" }));
+    expect(
+      screen.getByText("An unsaved revision should not release yet."),
+    ).toBeInTheDocument();
+  });
+
   it("allows an empty title draft while preserving the canonical saved title", () => {
     render(createElement(App));
     fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
