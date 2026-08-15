@@ -2,6 +2,11 @@
 
 Status: Phase 0/Phase 1 planning contracts; no live AI, MCP, or Gemma integration in the first UI vertical slice.
 
+Integration adapters follow the shared permission, audit, replacement, and
+teacher-comprehensibility contract in
+[Integration Boundaries](INTEGRATION_BOUNDARIES.md). No adapter may widen the
+domain services below.
+
 ## ADR-005 — Workspace, course membership, and storage-adapter boundaries
 
 Decision: expand the prototype around a versioned workspace aggregate rather

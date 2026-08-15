@@ -46,7 +46,7 @@ later: web / Flutter
      -> optional premium AI-job service (draft-only provider adapters)
 ```
 
-See the [master product plan](docs/MASTER_PRODUCT_PLAN.md), [architecture decisions](docs/ARCHITECTURE_DECISIONS.md), the [approved Economics UX contract](docs/ECONOMICS_VERTICAL_SLICE_UX_BRIEF.md), the [teacher authoring/operations track](docs/TEACHER_AUTHORING_OPERATIONS.md), the [current Module Composer authoring slice](docs/AUTHORING.md), and the [PR delivery register](docs/PR_PLAN.md).
+See the [master product plan](docs/MASTER_PRODUCT_PLAN.md), [architecture decisions](docs/ARCHITECTURE_DECISIONS.md), [integration boundaries](docs/INTEGRATION_BOUNDARIES.md), the [approved Economics UX contract](docs/ECONOMICS_VERTICAL_SLICE_UX_BRIEF.md), the [teacher authoring/operations track](docs/TEACHER_AUTHORING_OPERATIONS.md), the [current Module Composer authoring slice](docs/AUTHORING.md), and the [PR delivery register](docs/PR_PLAN.md).
 
 ## Local setup
 
