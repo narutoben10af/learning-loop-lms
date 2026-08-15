@@ -7,6 +7,40 @@ teacher-comprehensibility contract in
 [Integration Boundaries](INTEGRATION_BOUNDARIES.md). No adapter may widen the
 domain services below.
 
+## ADR-006 — Profile-linked People projection without production identity
+
+Decision: keep profile records distinct from workspace membership records.
+Membership remains the authority for an actor's organisation/course role;
+profiles provide the minimum display identity needed by People, attendance,
+submissions, and grades. The local prototype persists a separately versioned,
+strictly validated fictional profile snapshot.
+
+- Teacher and authorised school-role projections may view a course roster;
+  student projection returns only the actor's own course profile.
+- An assigned teacher may create a course-scoped pending student or teaching
+  assistant membership. They cannot grant organisation roles or add members to
+  another course.
+- Local Add people captures a fictional display name and role only. It does not
+  create credentials, send an invite, or generate a real activation secret.
+- Production activation remains roster -> private single-use code -> name
+  confirmation -> learner-chosen credentials. Teachers never set or see
+  passwords; recovery is verified in person and issues a fresh code.
+- Unknown profile fields fail closed and role projections reconstruct an exact
+  allowlist, preventing local/private metadata from crossing to students.
+
+### Acceptance criteria
+
+1. Every projected course person is linked by stable profile and workspace
+   membership identity; display-only orphan rows are not accepted.
+2. Teacher search/filter and pending-record creation work without email, phone,
+   public registration, or a shared course code.
+3. A student cannot enumerate another learner, teacher roster metadata, or Add
+   people capabilities through route state or the People projection.
+4. Persisted malformed, stale, duplicate, cross-organisation, or unknown-field
+   profile data falls back safely and does not cross the UI boundary.
+5. Attendance, submissions, and grades later reference profile plus course
+   membership identity rather than copying a display name.
+
 ## ADR-005 — Workspace, course membership, and storage-adapter boundaries
 
 Decision: expand the prototype around a versioned workspace aggregate rather

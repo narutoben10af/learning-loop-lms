@@ -6,7 +6,7 @@ Last reconciled: 2026-08-15
 
 ## Honest starting point
 
-Learning Loop first proved one strong idea: a student can predict, manipulate a reusable Economics graph, explain the result, and send evidence into a teacher review loop. It also has a small Module Composer. The first workspace milestone now adds a role-projected course dashboard and private local course creation, but the product is not yet a recognisable, day-to-day LMS because roster, announcements, media library, and the complete course workspace are still being delivered. Comparing the remaining gap with a mature LMS exposes a product-system gap, not a polish issue.
+Learning Loop first proved one strong idea: a student can predict, manipulate a reusable Economics graph, explain the result, and send evidence into a teacher review loop. It now also has a role-projected course dashboard, private local course creation, a course shell, Modules authoring, and a synthetic profile-linked People roster. The product is not yet a recognisable, day-to-day LMS because announcements, the media library, and the complete assessment/grade workflow are still being delivered. Comparing the remaining gap with a mature LMS exposes a product-system gap, not a polish issue.
 
 The reset keeps the validated Economics learning loop and builds the course operating system around it. Canvas workflow observations inform the jobs that must be supported; Learning Loop will not copy Canvas code, language, visual trade dress, navigation density, or course content. Its original differentiator is a quieter workspace organised around the next teaching action and the learner evidence it will create.
 
@@ -96,21 +96,21 @@ Evidence limit: screenshots were deliberately not tracked or published because t
 
 Goal: make the public prototype recognisable and useful as an LMS shell while keeping all data synthetic and device-local.
 
-Current status: the workspace/course contract, My workspace dashboard, selected-course navigation shell, teaching-focused Home, and Modules integration are implemented. People, Announcements, and Files remain the immediate functional delivery sequence; other named course operations are visible with honest scope and a useful adjacent action rather than pretend functionality.
+Current status: the workspace/course contract, My workspace dashboard, selected-course navigation shell, teaching-focused Home, Modules integration, and profile-linked synthetic People roster are implemented. Announcements and Files remain the immediate functional delivery sequence; other named course operations are visible with honest scope and a useful adjacent action rather than pretend functionality.
 
 Deliver in focused PRs:
 
 1. **Workspace and course domain** — versioned organisation/workspace state, course list, role memberships, course status, create/select/archive-safe contracts, local migration and fail-closed validation.
 2. **Course dashboard** — first screen with active/draft courses, recent teaching signals, and a validated Create Course flow. Teachers receive author actions; students receive only authorised courses and learning signals.
 3. **Course shell and overview** — stable original navigation plus functional Home, Modules integration, and honest scoped destinations.
-4. **People and profiles** — fictional profile and course-membership projections for teacher, teaching assistant, student, and parent/guardian roles; search/filter; clear Add people scope; no-email roster-to-private-activation contract; recovery/privacy/audit boundaries. No production invitation or enrolment is implied.
+4. **People and profiles** — fictional profile and course-membership projections for teacher, teaching assistant, student, and parent/guardian roles; search/filter; clear Add people scope; no-email roster-to-private-activation contract; recovery/privacy/audit boundaries. The local slice creates only pending synthetic records and never implies a production invitation, account, or enrolment.
 5. **Announcements** — local draft/schedule/publish/archive behavior, explicit audience, and student projection only after release.
 6. **Files and local media** — media-library entry, link/embed and browser-file draft metadata, image thumbnail preview where the browser provides an object URL, replace/remove, student-safe projection, and a storage adapter boundary.
 
 Immediate acceptance criteria:
 
 - Opening the app starts at My workspace and a user can create, see, select, and return between multiple local synthetic courses.
-- A teacher enters a selected course and can use Home and Modules. People, Announcements, and Files identify exactly what is not available and remain honest until their focused functional slices merge.
+- A teacher enters a selected course and can use Home, Modules, and People. Announcements and Files identify exactly what is not available and remain honest until their focused functional slices merge.
 - Assignments, Quizzes, Grades, Pages, Discussions, Calendar, and Settings are reachable, truthful about delivery state, and link to a working adjacent action where one exists.
 - Student and teacher projections are separate routes/surfaces. A student cannot reveal teacher navigation or raw data through client state.
 - The Economics activity remains launchable from its module and its completion evidence returns to the course view.

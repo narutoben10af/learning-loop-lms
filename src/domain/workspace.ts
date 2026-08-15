@@ -666,7 +666,17 @@ export function addWorkspaceMembership(
       ["platform-owner", "organization-administrator"].includes(role),
     )
     .sort((a, b) => rolePriority[b] - rolePriority[a])[0];
-  if (!authority) {
+  const isCourseTeacher =
+    membership.courseId !== null &&
+    activeMemberships(snapshot.workspace, actor).some(
+      (candidate) =>
+        candidate.courseId === membership.courseId &&
+        candidate.role === "teacher",
+    );
+  const teacherMayAddCourseRole =
+    isCourseTeacher &&
+    ["student", "teaching-assistant"].includes(membership.role);
+  if (!authority && !teacherMayAddCourseRole) {
     throw new Error("Actor is not authorised to manage memberships");
   }
   if (
