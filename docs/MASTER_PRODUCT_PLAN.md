@@ -74,7 +74,7 @@ The authorised, sanitised workflow study establishes capability coverage, not a 
 
 ### Sanitised structural re-audit — 2026-08-15
 
-A fresh read-only review of the authenticated Temple Canvas instructor surface confirmed the following structure. No Canvas record was changed; no student name, course content, file name, asset, or screenshot is retained in this repository.
+A fresh read-only review of an authenticated institutional Canvas instructor surface confirmed the following structure. No Canvas record was changed; no student name, course content, file name, asset, or screenshot is tracked or published in this repository.
 
 - The dashboard makes courses, global calendar, and grades reachable, but this institutional account did not expose a clear teacher Create Course action. Learning Loop therefore owns an obvious permission-aware Create Course flow instead of assuming institution provisioning.
 - Course Home combines editable home content with course publication, home-page choice, activity stream, and announcement entry. Learning Loop separates course status from page authoring and makes the next teaching actions the primary hierarchy.
@@ -86,7 +86,7 @@ A fresh read-only review of the authenticated Temple Canvas instructor surface c
 - The individual Gradebook exposes section and assignment sorting, learner/assignment selectors, ungraded-as-zero, hidden-name and notes options, history, and previous/next marking context. Learning Loop prioritises a needs-marking queue and safer release/audit before administrative density.
 - Discussions expose a dedicated create/manage surface; Calendar combines multiple course calendars and undated work; Settings separates course details, sections, navigation, integrations/apps, feature options, student view, and course lifecycle actions. Learning Loop keeps each as a named course operation but stages the editable depth by milestone.
 
-Evidence limit: screenshots were deliberately not retained because the authorised task permits only sanitised structural notes. Visual treatment and accessibility implementation were therefore not copied or claimed as audit evidence; Learning Loop's UI remains independently designed and must pass its own browser and assistive-technology checks.
+Evidence limit: screenshots were deliberately not tracked or published because the authorised task permits only sanitised structural notes. Visual treatment and accessibility implementation were therefore not copied or claimed as audit evidence; Learning Loop's UI remains independently designed and must pass its own browser and assistive-technology checks.
 
 ## Delivery milestones
 
