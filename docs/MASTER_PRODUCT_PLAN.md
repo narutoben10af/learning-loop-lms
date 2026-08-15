@@ -6,7 +6,7 @@ Last reconciled: 2026-08-15
 
 ## Honest starting point
 
-Learning Loop first proved one strong idea: a student can predict, manipulate a reusable Economics graph, explain the result, and send evidence into a teacher review loop. It now also has a role-projected course dashboard, private local course creation, a course shell, Modules authoring, and a synthetic profile-linked People roster. The product is not yet a recognisable, day-to-day LMS because announcements, the media library, and the complete assessment/grade workflow are still being delivered. Comparing the remaining gap with a mature LMS exposes a product-system gap, not a polish issue.
+Learning Loop first proved one strong idea: a student can predict, manipulate a reusable Economics graph, explain the result, and send evidence into a teacher review loop. It now also has a role-projected course dashboard, private local course creation, a course shell, Modules authoring, a synthetic profile-linked People roster, and deliberate course Announcements. The product is not yet a recognisable, day-to-day LMS because the media library and complete assessment/grade workflow are still being delivered. Comparing the remaining gap with a mature LMS exposes a product-system gap, not a polish issue.
 
 The reset keeps the validated Economics learning loop and builds the course operating system around it. Canvas workflow observations inform the jobs that must be supported; Learning Loop will not copy Canvas code, language, visual trade dress, navigation density, or course content. Its original differentiator is a quieter workspace organised around the next teaching action and the learner evidence it will create.
 
@@ -40,20 +40,20 @@ Students see their courses, due/available work, feedback, and private progress. 
 
 Every course uses one original, role-aware shell with these destinations:
 
-| Destination   | Teacher job                                                                                      | Student job                                                             | First implementation state                                        |
-| ------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| Home          | See teaching priorities, current learning sequence, draft/release issues, and review workload    | See the next learning action, recent feedback, and course progress      | Functional in the immediate course-shell milestone                |
-| Announcements | Draft, schedule, publish, edit, and archive course notices                                       | Read published notices in chronological context                         | Functional local/synthetic slice                                  |
-| Modules       | Compose, order, schedule, preview, and publish the learning sequence                             | Follow authorised items and completion requirements                     | Existing composer and Economics launch integrated into the shell  |
-| Assignments   | Find canonical assessments, author settings/content, and manage release                          | See authorised assignment instructions, status, due dates, and attempts | Honest roadmap surface until assessment core lands                |
-| Quizzes       | Build versioned quizzes from the question bank and validate preview/release                      | Complete authorised attempts and receive configured feedback            | Honest roadmap surface until question-bank core lands             |
-| Grades        | Enter the needs-marking queue, mark with context, and control feedback release                   | See only released grades, feedback, and next actions                    | Honest roadmap surface until submissions/gradebook lands          |
-| People        | View authorised course membership and roles; later invite/activate through safe roster workflows | See only the class information policy permits                           | Honest scope surface; functional roster is the next focused slice |
-| Pages         | Find and edit learner-facing pages without losing module context                                 | Read published pages in the course navigator                            | Initial entries route to the real Module Composer/editor          |
-| Files         | Add, organise, preview, replace, and remove permissioned course media                            | Open only student-safe published file projections                       | Functional local-demo media library plus future storage contract  |
-| Discussions   | Create structured prompts and moderation settings                                                | Participate within course policy                                        | Honest roadmap surface until communications delivery              |
-| Calendar      | Schedule releases, due dates, lessons, and exceptions                                            | See authorised course dates and availability                            | Readable course schedule first; full editing later                |
-| Settings      | Manage course identity, term, status, visibility, policies, and approved integrations            | No teacher settings                                                     | Functional course essentials first; advanced policy later         |
+| Destination   | Teacher job                                                                                      | Student job                                                             | First implementation state                                       |
+| ------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Home          | See teaching priorities, current learning sequence, draft/release issues, and review workload    | See the next learning action, recent feedback, and course progress      | Functional in the immediate course-shell milestone               |
+| Announcements | Draft, schedule, publish, edit, and archive course notices                                       | Read published notices in chronological context                         | Functional local/synthetic slice                                 |
+| Modules       | Compose, order, schedule, preview, and publish the learning sequence                             | Follow authorised items and completion requirements                     | Existing composer and Economics launch integrated into the shell |
+| Assignments   | Find canonical assessments, author settings/content, and manage release                          | See authorised assignment instructions, status, due dates, and attempts | Honest roadmap surface until assessment core lands               |
+| Quizzes       | Build versioned quizzes from the question bank and validate preview/release                      | Complete authorised attempts and receive configured feedback            | Honest roadmap surface until question-bank core lands            |
+| Grades        | Enter the needs-marking queue, mark with context, and control feedback release                   | See only released grades, feedback, and next actions                    | Honest roadmap surface until submissions/gradebook lands         |
+| People        | View authorised course membership and roles; later invite/activate through safe roster workflows | See only the class information policy permits                           | Functional local/synthetic roster slice                          |
+| Pages         | Find and edit learner-facing pages without losing module context                                 | Read published pages in the course navigator                            | Initial entries route to the real Module Composer/editor         |
+| Files         | Add, organise, preview, replace, and remove permissioned course media                            | Open only student-safe published file projections                       | Functional local-demo media library plus future storage contract |
+| Discussions   | Create structured prompts and moderation settings                                                | Participate within course policy                                        | Honest roadmap surface until communications delivery             |
+| Calendar      | Schedule releases, due dates, lessons, and exceptions                                            | See authorised course dates and availability                            | Readable course schedule first; full editing later               |
+| Settings      | Manage course identity, term, status, visibility, policies, and approved integrations            | No teacher settings                                                     | Functional course essentials first; advanced policy later        |
 
 Navigation labels may be combined or progressively disclosed on phones, but no visible destination may be a dead control or pretend to be complete. A roadmap destination explains what exists now, what does not, and links to the closest real workflow.
 
@@ -96,7 +96,7 @@ Evidence limit: screenshots were deliberately not tracked or published because t
 
 Goal: make the public prototype recognisable and useful as an LMS shell while keeping all data synthetic and device-local.
 
-Current status: the workspace/course contract, My workspace dashboard, selected-course navigation shell, teaching-focused Home, Modules integration, and profile-linked synthetic People roster are implemented. Announcements and Files remain the immediate functional delivery sequence; other named course operations are visible with honest scope and a useful adjacent action rather than pretend functionality.
+Current status: the workspace/course contract, My workspace dashboard, selected-course navigation shell, teaching-focused Home, Modules integration, profile-linked synthetic People roster, and role-safe Announcements are implemented. Files/media remains the immediate functional delivery step; other named course operations are visible with honest scope and a useful adjacent action rather than pretend functionality.
 
 Deliver in focused PRs:
 
@@ -110,7 +110,7 @@ Deliver in focused PRs:
 Immediate acceptance criteria:
 
 - Opening the app starts at My workspace and a user can create, see, select, and return between multiple local synthetic courses.
-- A teacher enters a selected course and can use Home, Modules, and People. Announcements and Files identify exactly what is not available and remain honest until their focused functional slices merge.
+- A teacher enters a selected course and can use Home, Modules, People, and Announcements. Files identifies exactly what is not available and remains honest until its focused functional slice merges.
 - Assignments, Quizzes, Grades, Pages, Discussions, Calendar, and Settings are reachable, truthful about delivery state, and link to a working adjacent action where one exists.
 - Student and teacher projections are separate routes/surfaces. A student cannot reveal teacher navigation or raw data through client state.
 - The Economics activity remains launchable from its module and its completion evidence returns to the course view.

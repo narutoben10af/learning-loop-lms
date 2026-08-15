@@ -2435,6 +2435,153 @@ footer button {
 .my-course-profile small {
   display: block;
 }
+.announcements-shell {
+  max-width: 1120px;
+  padding-top: 2.5rem;
+}
+.announcements-hero {
+  align-items: end;
+  display: flex;
+  gap: 2rem;
+  justify-content: space-between;
+}
+.announcements-hero > div {
+  max-width: 720px;
+}
+.announcements-hero h1 {
+  font-size: clamp(2.5rem, 6vw, 4.6rem);
+}
+.announcement-count {
+  background: var(--teal-soft);
+  border-radius: 999px;
+  color: var(--teal-ink);
+  font-size: 0.78rem;
+  font-weight: 850;
+  padding: 0.55rem 0.85rem;
+  white-space: nowrap;
+}
+.announcement-editor,
+.announcement-library,
+.announcement-card,
+.announcement-empty {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 1.15rem;
+  box-shadow: var(--shadow);
+}
+.announcement-editor {
+  display: grid;
+  gap: 1.2rem 2rem;
+  grid-template-columns: minmax(0, 0.8fr) minmax(20rem, 1.2fr);
+  margin-top: 1.4rem;
+  padding: clamp(1.1rem, 3vw, 1.6rem);
+}
+.announcement-editor h2,
+.announcement-editor p {
+  margin-bottom: 0;
+}
+.announcement-editor-fields {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: minmax(0, 1fr) minmax(12rem, 0.45fr);
+}
+.announcement-editor-fields label,
+.announcement-tools label,
+.announcement-schedule {
+  color: var(--muted);
+  display: grid;
+  font-size: 0.76rem;
+  font-weight: 800;
+  gap: 0.35rem;
+}
+.announcement-editor-fields input,
+.announcement-editor-fields select,
+.announcement-editor-fields textarea,
+.announcement-tools input,
+.announcement-tools select,
+.announcement-schedule input {
+  min-height: 2.75rem;
+  min-width: 0;
+  width: 100%;
+}
+.announcement-body-field {
+  grid-column: 1 / -1;
+}
+.announcement-body-field textarea {
+  resize: vertical;
+}
+.announcement-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  grid-column: 2;
+}
+.announcement-library {
+  margin-top: 1.4rem;
+  padding: clamp(1.1rem, 3vw, 1.6rem);
+}
+.announcement-library-heading {
+  align-items: end;
+}
+.announcement-tools {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: minmax(0, 1fr) minmax(12rem, 0.35fr);
+  margin-top: 1rem;
+}
+.announcement-list,
+.announcement-feed {
+  display: grid;
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
+.announcement-card,
+.announcement-empty {
+  box-shadow: none;
+  padding: clamp(1rem, 3vw, 1.35rem);
+}
+.announcement-card h2,
+.announcement-card h3 {
+  margin: 0.55rem 0 0.35rem;
+}
+.announcement-card p,
+.announcement-empty p {
+  color: var(--muted);
+  margin-bottom: 0;
+  white-space: pre-wrap;
+}
+.announcement-card-meta {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+  font-weight: 750;
+  gap: 0.5rem 0.8rem;
+}
+.announcement-card-actions {
+  align-items: end;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+}
+.announcement-schedule {
+  flex: 1 1 19rem;
+}
+.announcement-schedule > span:last-child {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: minmax(11rem, 1fr) auto;
+}
+.danger-text {
+  color: #8b3131;
+}
+.student-announcement {
+  border-left: 4px solid var(--teal);
+}
 
 @media (max-width: 1020px) {
   .course-workspace-frame {
@@ -2479,7 +2626,8 @@ footer button {
 @media (max-width: 780px) {
   .teacher-course-hero,
   .course-action-callout,
-  .people-hero {
+  .people-hero,
+  .announcements-hero {
     align-items: stretch;
     flex-direction: column;
   }
@@ -2496,7 +2644,16 @@ footer button {
   .people-tools {
     grid-template-columns: 1fr;
   }
+  .announcement-editor,
+  .announcement-editor-fields,
+  .announcement-tools {
+    grid-template-columns: 1fr;
+  }
   .add-person-actions {
+    grid-column: 1;
+  }
+  .announcement-editor-actions,
+  .announcement-body-field {
     grid-column: 1;
   }
   .my-course-profile {
@@ -2522,14 +2679,28 @@ footer button {
 @media (max-width: 480px) {
   .teacher-course-primary-actions,
   .course-placeholder-actions,
-  .add-person-actions {
+  .add-person-actions,
+  .announcement-editor-actions,
+  .announcement-card-actions {
     display: grid;
   }
   .teacher-course-primary-actions .button,
   .course-action-callout .button,
   .course-placeholder-actions .button,
   .add-person-actions .button,
-  .people-hero > .button {
+  .people-hero > .button,
+  .announcements-hero > .button,
+  .announcement-editor-actions .button,
+  .announcement-card-actions > .button {
+    width: 100%;
+  }
+  .announcement-schedule,
+  .announcement-schedule > span:last-child {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+  .announcement-schedule .button {
     width: 100%;
   }
   .teacher-course-signals {

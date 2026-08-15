@@ -1,9 +1,16 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { App } from "./App";
 import { PEOPLE_STORAGE_KEY } from "./domain/people";
+import { ANNOUNCEMENTS_STORAGE_KEY } from "./domain/announcements";
 
 function openTeacherComposer(): void {
   if (!screen.queryByRole("heading", { name: "My workspace" })) {
@@ -162,10 +169,11 @@ describe("learning-loop prototype", () => {
     expect(
       screen.getByRole("heading", { name: "Announcements" }),
     ).toBeVisible();
-    expect(screen.getByText("Planned · not available yet")).toBeVisible();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Return to course home" }),
-    );
+    expect(screen.getByText("Welcome to Market Signals")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "+ New announcement" }),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Home" }));
     expect(screen.getByText("Next teaching action")).toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: "People" }));
@@ -206,9 +214,7 @@ describe("learning-loop prototype", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Announcements" }));
     const announcementsRoute = structuredClone(window.history.state);
-    fireEvent.click(
-      screen.getByRole("button", { name: "Return to course home" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Home" }));
     const homeRoute = structuredClone(window.history.state);
     fireEvent.click(screen.getByRole("button", { name: "Modules" }));
 
@@ -220,8 +226,87 @@ describe("learning-loop prototype", () => {
     expect(
       screen.getByRole("heading", { name: "Announcements" }),
     ).toBeVisible();
-    expect(screen.getByText("Planned · not available yet")).toBeVisible();
+    expect(screen.getByText("Welcome to Market Signals")).toBeVisible();
     expect(screen.getByRole("main")).toHaveFocus();
+  });
+
+  it("keeps announcement drafts private until an explicit release", () => {
+    render(createElement(App));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open course workspace" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Announcements" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ New announcement" }));
+    expect(screen.getByLabelText("Title")).toHaveFocus();
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "Bring your calculation notes" },
+    });
+    fireEvent.change(screen.getByLabelText("Message"), {
+      target: { value: "We will compare the before and after equilibria." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+
+    expect(screen.getByText("Bring your calculation notes")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "+ New announcement" }),
+    ).toHaveFocus();
+
+    fireEvent.click(screen.getByRole("button", { name: "Student courses" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open course" }));
+    fireEvent.click(screen.getByRole("button", { name: "Announcements" }));
+    expect(
+      screen.queryByText("Bring your calculation notes"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /new announcement/i }),
+    ).toBeNull();
+
+    fireEvent.popState(window, {
+      state: {
+        learningLoopScreen: "teacher-course-placeholder",
+        learningLoopDestination: "announcements",
+        learningLoopCourseId: "econ-10a",
+      },
+    });
+    const draftCard = screen
+      .getByText("Bring your calculation notes")
+      .closest("article");
+    expect(draftCard).not.toBeNull();
+    fireEvent.click(
+      within(draftCard as HTMLElement).getByRole("button", {
+        name: "Publish now",
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Student courses" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open course" }));
+    fireEvent.click(screen.getByRole("button", { name: "Announcements" }));
+    expect(screen.getByText("Bring your calculation notes")).toBeVisible();
+  });
+
+  it("falls back from malformed announcement storage", () => {
+    window.localStorage.setItem(
+      ANNOUNCEMENTS_STORAGE_KEY,
+      JSON.stringify({
+        schemaVersion: 1,
+        organizationId: "learning-loop-demo-school",
+        announcements: [{ secretRecipients: ["student-1"] }],
+        revision: 1,
+        audit: {
+          createdBy: "owner-1",
+          createdAt: "2026-08-15T09:00:00.000Z",
+          updatedBy: "owner-1",
+          updatedAt: "2026-08-15T09:00:00.000Z",
+        },
+      }),
+    );
+    render(createElement(App));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open course workspace" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Announcements" }));
+    expect(screen.getByText("Welcome to Market Signals")).toBeVisible();
+    expect(screen.queryByText("student-1")).toBeNull();
   });
 
   it("restores student destinations without exposing stale teacher state", () => {

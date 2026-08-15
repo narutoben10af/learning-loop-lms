@@ -41,6 +41,28 @@ strictly validated fictional profile snapshot.
 5. Attendance, submissions, and grades later reference profile plus course
    membership identity rather than copying a display name.
 
+## ADR-007 — Announcements are audited release records, not generic pages
+
+**Decision:** keep course announcements in a strict, versioned organisation snapshot and expose them only through course-scoped projections. Draft, scheduled, published, and archived are explicit lifecycle states. Audience is explicit (`all-course-members`, `students-only`, or `staff-only`), and editing a released notice returns the changed revision to draft until deliberate publication.
+
+**Why:** communication content can reveal course activity or staff context. A generic page plus a visual "published" badge would not enforce recipient, timing, or revision boundaries. Domain projections make the student feed incapable of receiving drafts, staff-only content, archived content, or a schedule that has not reached its release instant.
+
+**Prototype boundary:** storage is local and synthetic. No email, push notification, contact import, delivery receipt, or production enrolment is implemented. A later notification connector must consume an authorised release event through a replaceable, audited adapter; it cannot infer recipients from client UI state.
+
+### Acceptance criteria
+
+1. Only an assigned teacher or authorised organisation administrator can author
+   or release a notice for a course.
+2. Students receive only released course-member/student notices for their own
+   active course relationship; draft, archived, staff-only, and future content
+   is omitted rather than masked in the UI.
+3. Editing a published notice creates an explicit private draft revision that
+   requires another release action.
+4. Strict persisted-state validation rejects unknown fields, malformed roles,
+   invalid timestamps, duplicate identities, and stale schema versions.
+5. Local authoring never claims external delivery, contacts recipients, or
+   crosses a provider boundary.
+
 ## ADR-005 — Workspace, course membership, and storage-adapter boundaries
 
 Decision: expand the prototype around a versioned workspace aggregate rather
