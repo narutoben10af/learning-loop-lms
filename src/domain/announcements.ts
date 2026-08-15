@@ -202,6 +202,12 @@ function assertCanAuthor(
 ): void {
   assertValidAnnouncementSnapshot(snapshot);
   assertValidWorkspaceSnapshot(workspace);
+  const course = workspace.workspace.courses.find(
+    (candidate) => candidate.id === courseId,
+  );
+  if (!course || course.lifecycle === "archived") {
+    throw new Error("Archived courses cannot change announcements");
+  }
   if (
     snapshot.organizationId !== actor.organizationId ||
     !rolesForCourse(workspace, actor, courseId).some((role) =>

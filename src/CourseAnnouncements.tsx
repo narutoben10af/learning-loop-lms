@@ -79,7 +79,8 @@ export function CourseAnnouncements({
     if (restoreFocusId === "new") {
       newTriggerRef.current?.focus();
     } else {
-      editTriggerRefs.current.get(restoreFocusId)?.focus();
+      const itemTrigger = editTriggerRefs.current.get(restoreFocusId);
+      (itemTrigger ?? newTriggerRef.current)?.focus();
     }
     setRestoreFocusId(null);
   }, [editorOpen, projection.announcements, restoreFocusId]);

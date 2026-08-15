@@ -353,6 +353,47 @@ describe("learning-loop prototype", () => {
     ).toHaveFocus();
   });
 
+  it("restores focus when a filtered mutation removes its card", () => {
+    render(createElement(App));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open course workspace" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Announcements" }));
+    fireEvent.change(screen.getByLabelText("Status"), {
+      target: { value: "published" },
+    });
+    const publishedCard = screen
+      .getByText("Welcome to Market Signals")
+      .closest("article");
+    fireEvent.click(
+      within(publishedCard as HTMLElement).getByRole("button", {
+        name: "Edit",
+      }),
+    );
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "Revised Market Signals" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    expect(
+      screen.getByRole("button", { name: "+ New announcement" }),
+    ).toHaveFocus();
+
+    fireEvent.change(screen.getByLabelText("Status"), {
+      target: { value: "draft" },
+    });
+    const draftCard = screen
+      .getByText("Revised Market Signals")
+      .closest("article");
+    fireEvent.click(
+      within(draftCard as HTMLElement).getByRole("button", {
+        name: "Publish now",
+      }),
+    );
+    expect(
+      screen.getByRole("button", { name: "+ New announcement" }),
+    ).toHaveFocus();
+  });
+
   it("falls back from malformed announcement storage", () => {
     window.localStorage.setItem(
       ANNOUNCEMENTS_STORAGE_KEY,

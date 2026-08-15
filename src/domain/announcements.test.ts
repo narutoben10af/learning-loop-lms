@@ -3,6 +3,7 @@ import { createCourse } from "./course";
 import {
   ANNOUNCEMENTS_STORAGE_KEY,
   addAnnouncementDraft,
+  archiveAnnouncement,
   createAnnouncementRecord,
   createAnnouncementSnapshot,
   loadAnnouncementSnapshot,
@@ -318,6 +319,54 @@ describe("course announcements domain", () => {
         now,
       }),
     ).toThrow(/not authorised/);
+  });
+
+  it("rejects every announcement mutation after a course is archived", () => {
+    const active = buildWorkspace();
+    let announcements = createAnnouncementSnapshot(
+      organizationId,
+      owner.principalId,
+      now,
+    );
+    announcements = addAnnouncementDraft(announcements, active, teacher, {
+      id: "notice-1",
+      courseId: "econ-10a",
+      title: "Existing draft",
+      body: "This course is about to close.",
+      audience: "all-course-members",
+      now,
+    });
+    const archived = withCourseState(active, "archived", "enrolled-members");
+
+    expect(() =>
+      addAnnouncementDraft(announcements, archived, teacher, {
+        id: "notice-2",
+        courseId: "econ-10a",
+        title: "New draft",
+        body: "Not permitted",
+        audience: "all-course-members",
+        now,
+      }),
+    ).toThrow(/Archived courses/);
+    expect(() =>
+      reviseAnnouncement(announcements, archived, teacher, {
+        id: "notice-1",
+        title: "Changed",
+        body: "Not permitted",
+        audience: "all-course-members",
+        now,
+      }),
+    ).toThrow(/Archived courses/);
+    expect(() =>
+      releaseAnnouncement(announcements, archived, teacher, {
+        id: "notice-1",
+        state: "published",
+        now,
+      }),
+    ).toThrow(/Archived courses/);
+    expect(() =>
+      archiveAnnouncement(announcements, archived, teacher, "notice-1", now),
+    ).toThrow(/Archived courses/);
   });
 
   it("fails closed for a learner when the course is draft, private, or archived", () => {
