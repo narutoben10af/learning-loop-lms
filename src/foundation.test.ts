@@ -132,6 +132,7 @@ describe("learning-loop prototype", () => {
       screen.getByRole("button", { name: "Open course workspace" }),
     );
 
+    expect(screen.getByRole("main")).toHaveFocus();
     expect(
       screen.getByRole("heading", { name: "Economics 10A" }),
     ).toBeVisible();
@@ -178,6 +179,7 @@ describe("learning-loop prototype", () => {
     render(createElement(App));
     openStudentCourse();
 
+    expect(screen.getByRole("main")).toHaveFocus();
     const courseNav = screen.getByRole("navigation", {
       name: "Economics 10A course areas",
     });
@@ -189,6 +191,49 @@ describe("learning-loop prototype", () => {
     fireEvent.click(screen.getByRole("button", { name: "Files" }));
     expect(screen.getByRole("heading", { name: "Files" })).toBeVisible();
     expect(screen.getByText(/no browser-selected bytes/i)).toBeVisible();
+  });
+
+  it("restores the complete teacher course route through browser history", () => {
+    render(createElement(App));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open course workspace" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Announcements" }));
+    const announcementsRoute = structuredClone(window.history.state);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Return to course home" }),
+    );
+    const homeRoute = structuredClone(window.history.state);
+    fireEvent.click(screen.getByRole("button", { name: "Modules" }));
+
+    fireEvent.popState(window, { state: homeRoute });
+    expect(screen.getByText("Next teaching action")).toBeVisible();
+    expect(screen.getByRole("main")).toHaveFocus();
+
+    fireEvent.popState(window, { state: announcementsRoute });
+    expect(
+      screen.getByRole("heading", { name: "Announcements" }),
+    ).toBeVisible();
+    expect(screen.getByText("Planned · not available yet")).toBeVisible();
+    expect(screen.getByRole("main")).toHaveFocus();
+  });
+
+  it("restores student destinations without exposing stale teacher state", () => {
+    render(createElement(App));
+    openStudentCourse();
+    fireEvent.click(screen.getByRole("button", { name: "Files" }));
+    const filesRoute = structuredClone(window.history.state);
+    fireEvent.click(screen.getByRole("button", { name: "Modules" }));
+    const modulesRoute = structuredClone(window.history.state);
+    fireEvent.click(screen.getByRole("button", { name: "Open activity" }));
+
+    fireEvent.popState(window, { state: modulesRoute });
+    expect(screen.getByRole("heading", { name: "Modules" })).toBeVisible();
+    expect(screen.queryByText("Settings")).not.toBeInTheDocument();
+
+    fireEvent.popState(window, { state: filesRoute });
+    expect(screen.getByRole("heading", { name: "Files" })).toBeVisible();
+    expect(screen.getByRole("main")).toHaveFocus();
   });
 
   it("discloses the predefined interactive template at author and learner entry points", () => {

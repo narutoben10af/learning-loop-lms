@@ -1141,6 +1141,10 @@ textarea {
 .interactive-template-notice.student {
   margin-inline: auto;
 }
+.module-item > .interactive-template-notice {
+  grid-column: 2 / -1;
+  width: 100%;
+}
 .interactive-template-notice strong,
 .interactive-template-notice p,
 .interactive-template-notice small {
@@ -2309,6 +2313,21 @@ footer button {
   .teacher-course-home-grid,
   .course-placeholder-card {
     grid-template-columns: 1fr;
+  }
+  .module-item {
+    align-items: start;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .module-item-copy {
+    min-width: 0;
+  }
+  .module-item .item-status,
+  .module-item .item-action {
+    grid-column: 2;
+    justify-self: start;
+  }
+  .module-item > .interactive-template-notice {
+    grid-column: 1 / -1;
   }
 }
 

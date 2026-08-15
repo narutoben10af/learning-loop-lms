@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useReducer,
   useRef,
   useState,
@@ -62,6 +63,7 @@ import { ebikeMarketScenario } from "./graph/scenarios";
 import { CourseWorkspaceShell } from "./CourseWorkspaceShell";
 import {
   courseDestinationLabel,
+  courseDestinations,
   type CourseDestination,
 } from "./courseNavigation";
 import {
@@ -391,6 +393,101 @@ type DemoScreen =
   | "teacher-student-preview-placeholder"
   | "teacher-composer"
   | "teacher-evidence";
+
+type LearningLoopHistoryState = {
+  learningLoopScreen: DemoScreen;
+  learningLoopDestination: CourseDestination;
+  learningLoopCourseId: string | null;
+};
+
+const demoScreens: readonly DemoScreen[] = [
+  "teacher-dashboard",
+  "student-dashboard",
+  "student-course",
+  "student-activity",
+  "student-course-placeholder",
+  "teacher-course-home",
+  "teacher-course-placeholder",
+  "teacher-student-preview",
+  "teacher-student-preview-activity",
+  "teacher-student-preview-placeholder",
+  "teacher-composer",
+  "teacher-evidence",
+];
+
+function isDemoScreen(value: unknown): value is DemoScreen {
+  return demoScreens.includes(value as DemoScreen);
+}
+
+function isCourseDestination(value: unknown): value is CourseDestination {
+  return courseDestinations.some((candidate) => candidate.id === value);
+}
+
+function normalizeHistoryState(
+  value: unknown,
+): LearningLoopHistoryState | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<LearningLoopHistoryState>;
+  if (!isDemoScreen(candidate.learningLoopScreen)) return null;
+
+  const screen = candidate.learningLoopScreen;
+  if (screen === "teacher-dashboard" || screen === "student-dashboard") {
+    return {
+      learningLoopScreen: screen,
+      learningLoopDestination: "home",
+      learningLoopCourseId: null,
+    };
+  }
+  if (
+    typeof candidate.learningLoopCourseId !== "string" ||
+    !candidate.learningLoopCourseId.trim() ||
+    !isCourseDestination(candidate.learningLoopDestination)
+  ) {
+    return null;
+  }
+
+  let expectedDestination: CourseDestination | null = null;
+  if (screen === "teacher-course-home") expectedDestination = "home";
+  else if (screen === "teacher-composer") expectedDestination = "modules";
+  else if (screen === "teacher-evidence") expectedDestination = "grades";
+  else if (
+    screen === "student-activity" ||
+    screen === "teacher-student-preview-activity"
+  ) {
+    expectedDestination = "modules";
+  }
+  if (
+    expectedDestination &&
+    candidate.learningLoopDestination !== expectedDestination
+  ) {
+    return null;
+  }
+
+  const isSharedCourseScreen =
+    screen === "student-course" || screen === "teacher-student-preview";
+  if (
+    isSharedCourseScreen &&
+    !["home", "modules"].includes(candidate.learningLoopDestination)
+  ) {
+    return null;
+  }
+
+  const isPlaceholder = screen.endsWith("placeholder");
+  if (
+    isPlaceholder &&
+    (["home", "modules"].includes(candidate.learningLoopDestination) ||
+      (screen !== "teacher-course-placeholder" &&
+        candidate.learningLoopDestination === "settings"))
+  ) {
+    return null;
+  }
+
+  return {
+    learningLoopScreen: screen,
+    learningLoopDestination: candidate.learningLoopDestination,
+    learningLoopCourseId: candidate.learningLoopCourseId,
+  };
+}
 
 type ActivityProps = {
   state: ActivityState;
@@ -1309,10 +1406,10 @@ function StudentCourseHome({
                           <span className="module-item-detail">
                             {contentDetail}
                           </span>
-                          {item.id === PREBUILT_INTERACTIVE_ITEM_ID && (
-                            <PrebuiltInteractiveDisclosure audience="student" />
-                          )}
                         </span>
+                        {item.id === PREBUILT_INTERACTIVE_ITEM_ID && (
+                          <PrebuiltInteractiveDisclosure audience="student" />
+                        )}
                         <span
                           className={
                             complete ? "item-status complete" : "item-status"
@@ -2651,18 +2748,88 @@ export function App() {
   }, [workspaceSnapshot]);
   useEffect(() => {
     const onPopState = (event: PopStateEvent) => {
-      const next = (event.state as { learningLoopScreen?: DemoScreen } | null)
-        ?.learningLoopScreen;
-      setScreenState(next ?? "teacher-dashboard");
+      const route = normalizeHistoryState(event.state);
+      if (!route) {
+        const requestedScreen = (
+          event.state as { learningLoopScreen?: unknown } | null
+        )?.learningLoopScreen;
+        const fallback =
+          isDemoScreen(requestedScreen) && requestedScreen.startsWith("student")
+            ? "student-dashboard"
+            : "teacher-dashboard";
+        setCourseDestination("home");
+        setScreenState(fallback);
+        return;
+      }
+      if (route.learningLoopCourseId) {
+        setSelectedCourseId(route.learningLoopCourseId);
+      }
+      setCourseDestination(route.learningLoopDestination);
+      setScreenState(route.learningLoopScreen);
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
+  useLayoutEffect(() => {
+    const main = document.getElementById("main-content");
+    if (main) {
+      main.tabIndex = -1;
+      main.focus({ preventScroll: true });
+    }
+    const resetScroll = () => {
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+    };
+    resetScroll();
+    const frame = window.requestAnimationFrame(resetScroll);
+    const timeout = window.setTimeout(resetScroll, 50);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timeout);
+    };
+  }, [screen, selectedCourseId, courseDestination]);
+  useEffect(() => {
+    window.history.scrollRestoration = "manual";
+    if (!normalizeHistoryState(window.history.state)) {
+      window.history.replaceState(
+        {
+          learningLoopScreen: "teacher-dashboard",
+          learningLoopDestination: "home",
+          learningLoopCourseId: null,
+        } satisfies LearningLoopHistoryState,
+        "",
+        "#teacher-dashboard",
+      );
+    }
+  }, []);
 
-  const setScreen = (next: DemoScreen) => {
-    window.history.pushState({ learningLoopScreen: next }, "", `#${next}`);
+  const setScreen = (
+    next: DemoScreen,
+    route?: { destination?: CourseDestination; courseId?: string },
+  ) => {
+    const isDashboard =
+      next === "teacher-dashboard" || next === "student-dashboard";
+    const nextDestination = isDashboard
+      ? "home"
+      : (route?.destination ?? courseDestination);
+    const nextCourseId = isDashboard
+      ? null
+      : (route?.courseId ?? selectedCourseId);
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
+    if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+    window.history.pushState(
+      {
+        learningLoopScreen: next,
+        learningLoopDestination: nextDestination,
+        learningLoopCourseId: nextCourseId,
+      } satisfies LearningLoopHistoryState,
+      "",
+      `#${next}`,
+    );
+    if (nextCourseId) setSelectedCourseId(nextCourseId);
+    setCourseDestination(nextDestination);
     setScreenState(next);
   };
 
@@ -2777,39 +2944,33 @@ export function App() {
   );
 
   const openTeacherCourse = (courseId: string) => {
-    setSelectedCourseId(courseId);
-    setCourseDestination("home");
-    setScreen("teacher-course-home");
+    setScreen("teacher-course-home", { courseId, destination: "home" });
   };
   const openStudentCourse = (courseId: string) => {
     if (!studentProjection.courses.some((course) => course.id === courseId)) {
       return;
     }
-    setSelectedCourseId(courseId);
-    setCourseDestination("home");
-    setScreen("student-course");
+    setScreen("student-course", { courseId, destination: "home" });
   };
 
   const navigateTeacherCourse = (destination: CourseDestination) => {
-    setCourseDestination(destination);
     if (destination === "home") {
-      setScreen("teacher-course-home");
+      setScreen("teacher-course-home", { destination });
     } else if (destination === "modules") {
-      setScreen("teacher-composer");
+      setScreen("teacher-composer", { destination });
     } else if (
       destination === "grades" &&
       selectedCourse.course.id === pilotCourseModel.course.id
     ) {
-      setScreen("teacher-evidence");
+      setScreen("teacher-evidence", { destination });
     } else {
-      setScreen("teacher-course-placeholder");
+      setScreen("teacher-course-placeholder", { destination });
     }
   };
 
   const navigateStudentCourse = (destination: CourseDestination) => {
-    setCourseDestination(destination);
     if (destination === "home" || destination === "modules") {
-      setScreen("student-course");
+      setScreen("student-course", { destination });
       if (destination === "modules") {
         window.requestAnimationFrame(() => {
           document.getElementById("modules-title")?.focus();
@@ -2817,14 +2978,13 @@ export function App() {
         });
       }
     } else {
-      setScreen("student-course-placeholder");
+      setScreen("student-course-placeholder", { destination });
     }
   };
 
   const navigateTeacherStudentPreview = (destination: CourseDestination) => {
-    setCourseDestination(destination);
     if (destination === "home" || destination === "modules") {
-      setScreen("teacher-student-preview");
+      setScreen("teacher-student-preview", { destination });
       if (destination === "modules") {
         window.requestAnimationFrame(() => {
           document.getElementById("modules-title")?.focus();
@@ -2832,7 +2992,7 @@ export function App() {
         });
       }
     } else {
-      setScreen("teacher-student-preview-placeholder");
+      setScreen("teacher-student-preview-placeholder", { destination });
     }
   };
   const createWorkspaceCourse = (draft: CreateCourseDraft): string | null => {
@@ -2894,9 +3054,7 @@ export function App() {
         },
       );
       setWorkspaceSnapshot(next);
-      setSelectedCourseId(id);
-      setCourseDestination("home");
-      setScreen("teacher-course-home");
+      setScreen("teacher-course-home", { courseId: id, destination: "home" });
       return null;
     } catch (error) {
       return error instanceof Error ? error.message : "Course creation failed.";
@@ -2955,7 +3113,9 @@ export function App() {
             <StudentCourseHome
               projection={studentSelectedCourseProjection}
               state={state}
-              onOpenActivity={() => setScreen("student-activity")}
+              onOpenActivity={() =>
+                setScreen("student-activity", { destination: "modules" })
+              }
             />
           </CourseWorkspaceShell>
         )}
@@ -3013,8 +3173,7 @@ export function App() {
             state={state}
             onOpenModules={() => navigateTeacherCourse("modules")}
             onPreview={() => {
-              setCourseDestination("home");
-              setScreen("teacher-student-preview");
+              setScreen("teacher-student-preview", { destination: "home" });
             }}
             onOpenEvidence={() => navigateTeacherCourse("grades")}
           />
@@ -3055,7 +3214,9 @@ export function App() {
               projection={teacherStudentPreviewProjection}
               state={state}
               onOpenActivity={() =>
-                setScreen("teacher-student-preview-activity")
+                setScreen("teacher-student-preview-activity", {
+                  destination: "modules",
+                })
               }
             />
           </CourseWorkspaceShell>
@@ -3063,7 +3224,9 @@ export function App() {
           <TeacherComposer
             course={selectedCourse}
             setCourse={setCourse}
-            onPreview={() => setScreen("teacher-student-preview")}
+            onPreview={() =>
+              setScreen("teacher-student-preview", { destination: "home" })
+            }
             itemDrafts={composerDrafts}
             setItemDrafts={setComposerDrafts}
           />
@@ -3087,7 +3250,9 @@ export function App() {
           <TeacherComposer
             course={selectedCourse}
             setCourse={setCourse}
-            onPreview={() => setScreen("teacher-student-preview")}
+            onPreview={() =>
+              setScreen("teacher-student-preview", { destination: "home" })
+            }
             itemDrafts={composerDrafts}
             setItemDrafts={setComposerDrafts}
           />
@@ -3127,8 +3292,7 @@ export function App() {
             course={selectedCourse}
             setCourse={setCourse}
             onPreview={() => {
-              setCourseDestination("home");
-              setScreen("teacher-student-preview");
+              setScreen("teacher-student-preview", { destination: "home" });
             }}
             itemDrafts={composerDrafts}
             setItemDrafts={setComposerDrafts}
@@ -3158,7 +3322,11 @@ export function App() {
             setSelectedCourseId(pilotCourseModel.course.id);
             setComposerDrafts({});
             window.history.replaceState(
-              { learningLoopScreen: "teacher-dashboard" },
+              {
+                learningLoopScreen: "teacher-dashboard",
+                learningLoopDestination: "home",
+                learningLoopCourseId: null,
+              } satisfies LearningLoopHistoryState,
               "",
               "#teacher-dashboard",
             );
