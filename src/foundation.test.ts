@@ -62,7 +62,9 @@ describe("learning-loop prototype", () => {
       }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText("How a supply shock changes equilibrium"),
+      screen.queryByRole("heading", {
+        name: "What will happen to equilibrium?",
+      }),
     ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Evidence & marking" }));
@@ -173,7 +175,7 @@ describe("learning-loop prototype", () => {
 
   it("shows release state and teacher composer actions without crossing role surfaces", () => {
     render(createElement(App));
-    expect(screen.getByText("2 items locked")).toBeInTheDocument();
+    expect(screen.getByText("1 item locked")).toBeInTheDocument();
     expect(
       screen.getByText("Available from 22 Aug · Your teacher sets release"),
     ).toBeInTheDocument();
@@ -189,11 +191,14 @@ describe("learning-loop prototype", () => {
     ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "+ Page" }));
-    expect(screen.getByDisplayValue("New page")).toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole("button", { name: "Publish" }).at(-1)!);
-    expect(
-      screen.getByDisplayValue("New page").closest("li"),
-    ).toHaveTextContent("Published");
+    expect(screen.getByRole("textbox", { name: "Title" })).toHaveValue(
+      "New page",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save content" }));
+    fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+    expect(screen.getByText("New page").closest("li")).toHaveTextContent(
+      "Published",
+    );
   });
 
   it("keeps authored module changes through student preview and return", () => {
@@ -210,32 +215,96 @@ describe("learning-loop prototype", () => {
         name: "Move Week 1 · Market signals up",
       }),
     ).toBeEnabled();
-    const title = screen.getByRole("textbox", {
-      name: "Title for Start here: reading a market graph",
-    });
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit content" })[0]);
+    const title = screen.getByRole("textbox", { name: "Title" });
     fireEvent.change(title, { target: { value: "Market graph reading" } });
-    fireEvent.blur(title);
-    expect(
-      screen.getByDisplayValue("Market graph reading"),
-    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save content" }));
+    expect(screen.getByText("Market graph reading")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Publish" }));
     fireEvent.click(screen.getByRole("button", { name: "Preview as student" }));
     expect(screen.getByText("Market graph reading")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
+    expect(screen.getByText("Market graph reading")).toBeInTheDocument();
+  });
+
+  it("requires saved learner content before a new item can publish", () => {
+    render(createElement(App));
+    fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Page" }));
+
     expect(
-      screen.getByDisplayValue("Market graph reading"),
+      screen.getByRole("button", { name: "Save content first" }),
+    ).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Student course" }));
+    expect(screen.queryByText("New page")).not.toBeInTheDocument();
+  });
+
+  it("keeps an unsaved editor draft through author preview and restores focus", () => {
+    render(createElement(App));
+    fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Page" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Title" }), {
+      target: { value: "Drafted reading" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Student course" }));
+    expect(screen.queryByText("Drafted reading")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
+
+    const editButtons = screen.getAllByRole("button", { name: "Edit content" });
+    fireEvent.click(editButtons[editButtons.length - 1]);
+    expect(screen.getByRole("textbox", { name: "Title" })).toHaveValue(
+      "Drafted reading",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(editButtons[editButtons.length - 1]).toHaveFocus();
+  });
+
+  it("keeps publish blocked while a preserved draft differs from saved content", () => {
+    render(createElement(App));
+    fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Page" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Title" }), {
+      target: { value: "Stable page" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save content" }));
+
+    const firstEditButtons = screen.getAllByRole("button", {
+      name: "Edit content",
+    });
+    fireEvent.click(firstEditButtons[firstEditButtons.length - 1]);
+    fireEvent.change(screen.getByLabelText("Body"), {
+      target: { value: "An unsaved revision should not release yet." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Student course" }));
+    fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
+
+    expect(
+      screen.getByRole("button", { name: "Save content first" }),
+    ).toBeDisabled();
+    const resumedEditButtons = screen.getAllByRole("button", {
+      name: "Edit content",
+    });
+    fireEvent.click(resumedEditButtons[resumedEditButtons.length - 1]);
+    expect(screen.getByLabelText("Body")).toHaveValue(
+      "An unsaved revision should not release yet.",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save content" }));
+    fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+    fireEvent.click(screen.getByRole("button", { name: "Student course" }));
+    expect(
+      screen.getByText("An unsaved revision should not release yet."),
     ).toBeInTheDocument();
   });
 
   it("allows an empty title draft while preserving the canonical saved title", () => {
     render(createElement(App));
     fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
-    const title = screen.getByRole("textbox", {
-      name: "Title for Start here: reading a market graph",
-    });
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit content" })[0]);
+    const title = screen.getByRole("textbox", { name: "Title" });
     fireEvent.change(title, { target: { value: "" } });
     expect(title).toHaveValue("");
-    fireEvent.blur(title);
+    fireEvent.click(screen.getByRole("button", { name: "Save content" }));
     expect(screen.getByRole("alert")).toHaveTextContent(/needs a title/);
     fireEvent.click(screen.getByRole("button", { name: "Student course" }));
     expect(
@@ -251,10 +320,145 @@ describe("learning-loop prototype", () => {
     fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
     fireEvent.click(screen.getByRole("button", { name: "+ Page" }));
 
-    expect(screen.getAllByDisplayValue("New page")).toHaveLength(2);
+    expect(
+      Array.from(document.querySelectorAll(".composer-item-title")).filter(
+        (element) => element.textContent === "New page",
+      ),
+    ).toHaveLength(2);
     fireEvent.click(screen.getByRole("button", { name: "Student course" }));
     expect(
       screen.getByRole("heading", { name: "Economics 10A" }),
+    ).toBeInTheDocument();
+  });
+
+  it("creates, edits, publishes, and renders a learner-facing page", () => {
+    render(createElement(App));
+    fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Page" }));
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Title" }), {
+      target: { value: "Why markets adjust" },
+    });
+    fireEvent.change(screen.getByLabelText("Body"), {
+      target: {
+        value:
+          "Read the graph, identify the changed determinant, and explain the new equilibrium.",
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save content" }));
+    fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+    fireEvent.click(screen.getByRole("button", { name: "Student course" }));
+
+    expect(screen.getByText("Why markets adjust")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Read the graph, identify the changed determinant, and explain the new equilibrium.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Edit content")).not.toBeInTheDocument();
+  });
+
+  it("validates a resource and exposes its saved description to students", () => {
+    render(createElement(App));
+    fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Resource" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save content" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(/description/);
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Description" }), {
+      target: { value: "A short article about supply determinants." },
+    });
+    fireEvent.change(screen.getByLabelText("Link URL"), {
+      target: { value: "https://example.edu/supply" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save content" }));
+    fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+    fireEvent.click(screen.getByRole("button", { name: "Student course" }));
+
+    expect(
+      screen.getByText("A short article about supply determinants. · link"),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps local file selection as metadata-only resource evidence", () => {
+    render(createElement(App));
+    fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Resource" }));
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "A teacher-provided graph handout." },
+    });
+    fireEvent.change(screen.getByLabelText("Resource type"), {
+      target: { value: "file" },
+    });
+    const file = new File(["synthetic"], "market-graph.pdf", {
+      type: "application/pdf",
+    });
+    fireEvent.change(screen.getByLabelText(/Select a local file/), {
+      target: { files: [file] },
+    });
+    expect(screen.getByText("market-graph.pdf")).toBeInTheDocument();
+    expect(screen.getByText(/local metadata only/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save content" }));
+    fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+    fireEvent.click(screen.getByRole("button", { name: "Student course" }));
+    expect(
+      screen.getByText("A teacher-provided graph handout. · file"),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps assignments as explicit draft handoffs without phantom release", () => {
+    render(createElement(App));
+    fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Assignment" }));
+    expect(screen.getByText("Assignment draft only")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox", { name: "Title" }), {
+      target: { value: "Explain a supply shock" },
+    });
+    fireEvent.change(screen.getByLabelText("Instructions"), {
+      target: {
+        value: "Use the graph to explain the price and quantity change.",
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save content" }));
+    expect(
+      screen.getByRole("button", { name: "Builder required" }),
+    ).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Student course" }));
+    expect(
+      screen.queryByText("Explain a supply shock"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("falls back safely when persisted course content is malformed", () => {
+    window.localStorage.setItem(
+      "learning-loop-course-model-v1",
+      JSON.stringify({ course: { id: "broken" }, modules: [], items: [] }),
+    );
+    render(createElement(App));
+    expect(
+      screen.getByRole("heading", { name: "Economics 10A" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Week 1 · Market signals")).toBeInTheDocument();
+  });
+
+  it("reloads saved authored content from the versioned local model", () => {
+    const view = render(createElement(App));
+    fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Page" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Title" }), {
+      target: { value: "Persisted lesson note" },
+    });
+    fireEvent.change(screen.getByLabelText("Body"), {
+      target: { value: "This saved content survives a reload." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save content" }));
+    fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+    view.unmount();
+
+    render(createElement(App));
+    expect(screen.getByText("Persisted lesson note")).toBeInTheDocument();
+    expect(
+      screen.getByText("This saved content survives a reload."),
     ).toBeInTheDocument();
   });
 });

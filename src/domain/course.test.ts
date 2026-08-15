@@ -33,6 +33,7 @@ function item(
     title: id,
     position,
     state,
+    content: { kind: "text", body: `Learner content for ${id}.` },
     actorId: "teacher-1",
     now,
   });
@@ -102,6 +103,137 @@ describe("course/module domain", () => {
       updatedBy: "teacher-1",
       updatedAt: now,
     });
+  });
+
+  it("supports validated learner-facing content without aliasing revisions", () => {
+    const original = createModuleItem({
+      id: "page-1",
+      courseId: "econ-10a",
+      moduleId: "market-shifts",
+      type: "page",
+      title: "Market graph reading",
+      position: 0,
+      actorId: "teacher-1",
+      now,
+      content: {
+        kind: "text",
+        body: "Read the axes before interpreting the shift.",
+      },
+    });
+    const revised = reviseModuleItem(
+      original,
+      {
+        title: "Market graph reading",
+        type: "page",
+        completion: original.completion,
+        availability: original.availability,
+        prerequisiteItemIds: [],
+        content: {
+          kind: "text",
+          body: "Read the axes, identify the determinant, and explain the new equilibrium.",
+        },
+      },
+      "teacher-1",
+      "2026-08-15T10:00:00.000Z",
+    );
+
+    expect(revised.content).toEqual({
+      kind: "text",
+      body: "Read the axes, identify the determinant, and explain the new equilibrium.",
+    });
+    if (revised.content?.kind === "text") revised.content.body = "changed";
+    expect(original.content).toEqual({
+      kind: "text",
+      body: "Read the axes before interpreting the shift.",
+    });
+
+    const courseModel = model();
+    courseModel.items[0] = {
+      ...courseModel.items[0],
+      type: "resource",
+      content: {
+        kind: "resource",
+        description: "A public supply reading.",
+        resourceType: "link",
+        url: "https://example.edu/supply",
+        localAttachment: null,
+      },
+    };
+    expect(
+      projectCourse(courseModel, "student", { now }).modules[0].items[0],
+    ).toMatchObject({
+      content: {
+        kind: "resource",
+        description: "A public supply reading.",
+      },
+    });
+
+    const fileModel = model();
+    fileModel.items[0] = {
+      ...fileModel.items[0],
+      type: "resource",
+      content: {
+        kind: "resource",
+        description: "A local graph handout.",
+        resourceType: "file",
+        url: null,
+        localAttachment: {
+          name: "graph.pdf",
+          sizeBytes: 128,
+          mimeType: "application/pdf",
+          lastModifiedAt: now,
+          storage: "browser-demo",
+        },
+      },
+    };
+    const studentFile = projectCourse(fileModel, "student", { now });
+    expect(studentFile.modules[0].items[0].content).toEqual({
+      kind: "resource",
+      description: "A local graph handout.",
+      resourceType: "file",
+      url: null,
+      localAttachment: null,
+    });
+
+    const malformedResource = {
+      ...courseModel,
+      items: [
+        {
+          ...courseModel.items[0],
+          content: {
+            kind: "resource" as const,
+            description: "Unexpected payload",
+            resourceType: "javascript-like" as "link",
+            url: null,
+            localAttachment: null,
+            bytes: "SECRET",
+          },
+        },
+        courseModel.items[1],
+      ],
+    };
+    expect(validateCourseModel(malformedResource).join(";")).toMatch(
+      /resourceType is invalid|unsupported fields/,
+    );
+    expect(() =>
+      createModuleItem({
+        id: "bad-resource",
+        courseId: "econ-10a",
+        moduleId: "market-shifts",
+        type: "resource",
+        title: "Bad resource",
+        position: 0,
+        actorId: "teacher-1",
+        now,
+        content: {
+          kind: "resource",
+          description: "Missing URL",
+          resourceType: "link",
+          url: null,
+          localAttachment: null,
+        },
+      }),
+    ).toThrow(/url is required/);
   });
 
   it("revises content without changing item identity and returns it to draft", () => {
@@ -230,6 +362,90 @@ describe("course/module domain", () => {
     expect(draft.completion).toEqual({ type: "view" });
   });
 
+  it("keeps assessment drafts out of live release", () => {
+    const assessmentDraft = createModuleItem({
+      id: "draft-assignment",
+      courseId: "econ-10a",
+      moduleId: "market-shifts",
+      type: "assignment",
+      title: "Household budget response",
+      position: 0,
+      content: {
+        kind: "assessment-draft",
+        instructions: "Explain the evidence you would use.",
+        dueAt: null,
+        points: null,
+        builderStatus: "not-started",
+      },
+      actorId: "teacher-1",
+      now,
+    });
+
+    expect(() =>
+      transitionReleaseState(assessmentDraft, "published", "teacher-1", now),
+    ).toThrow(/assessment drafts must continue/);
+
+    const source = model();
+    const scheduledDraft = {
+      ...assessmentDraft,
+      state: "scheduled" as const,
+      moduleId: source.modules[0].id,
+      courseId: source.course.id,
+      position: 2,
+    };
+    const student = projectCourse(
+      { ...source, items: [...source.items, scheduledDraft] },
+      "student",
+      { now },
+    );
+    const teacher = projectCourse(
+      { ...source, items: [...source.items, scheduledDraft] },
+      "teacher",
+      { now },
+    );
+    expect(student.modules[0].items.map((entry) => entry.id)).not.toContain(
+      "draft-assignment",
+    );
+    expect(teacher.modules[0].items.map((entry) => entry.id)).toContain(
+      "draft-assignment",
+    );
+
+    const malformedPublished = {
+      ...source,
+      items: [
+        {
+          ...source.items[0],
+          type: "assignment" as const,
+          content: scheduledDraft.content,
+          state: "published" as const,
+        },
+        source.items[1],
+      ],
+    };
+    expect(validateCourseModel(malformedPublished)).toContain(
+      "item notice: assessment drafts cannot be published",
+    );
+
+    const legacyPublished = {
+      ...source,
+      items: [
+        {
+          ...source.items[0],
+          type: "quiz" as const,
+          state: "published" as const,
+          content: undefined,
+        },
+        source.items[1],
+      ],
+    };
+    expect(validateCourseModel(legacyPublished)).toContain(
+      "item notice: assessment drafts cannot be published",
+    );
+    expect(() => projectCourse(legacyPublished, "student", { now })).toThrow(
+      /assessment drafts cannot be published/,
+    );
+  });
+
   it("gates release by schedule and completion by the declared rule", () => {
     const availability = {
       startsAt: "2026-08-15T10:00:00.000Z",
@@ -349,6 +565,13 @@ describe("course/module domain", () => {
       position: 0,
       state: "published",
       availability: { startsAt: "2026-08-22T09:00:00.000Z", endsAt: null },
+      content: {
+        kind: "resource",
+        description: "A scheduled reading.",
+        resourceType: "article",
+        url: "https://example.edu/scheduled",
+        localAttachment: null,
+      },
       actorId: "teacher-1",
       now,
     });
@@ -375,6 +598,13 @@ describe("course/module domain", () => {
         startsAt: "2026-08-10T09:00:00.000Z",
         endsAt: "2026-08-14T09:00:00.000Z",
       },
+      content: {
+        kind: "resource",
+        description: "An expired reading.",
+        resourceType: "article",
+        url: "https://example.edu/expired",
+        localAttachment: null,
+      },
       actorId: "teacher-1",
       now,
     });
@@ -387,6 +617,13 @@ describe("course/module domain", () => {
       position: 3,
       state: "published",
       prerequisiteItemIds: ["teacher-draft"],
+      content: {
+        kind: "resource",
+        description: "A prerequisite reading.",
+        resourceType: "article",
+        url: "https://example.edu/prerequisite",
+        localAttachment: null,
+      },
       actorId: "teacher-1",
       now,
     });
@@ -555,5 +792,36 @@ describe("course/module domain", () => {
     expect(
       issues.some((issue) => issue.includes("module market-shifts.audit")),
     ).toBe(true);
+  });
+
+  it("fails closed for published items missing learner content", () => {
+    const source = model();
+    const invalid: CourseModel = {
+      ...source,
+      items: [
+        { ...source.items[0], content: undefined },
+        {
+          ...source.items[1],
+          id: "missing-resource-content",
+          type: "resource",
+          position: 1,
+          content: undefined,
+        },
+        {
+          ...source.items[1],
+          id: "missing-video-content",
+          type: "video",
+          position: 2,
+          content: undefined,
+        },
+      ],
+    };
+    const issues = validateCourseModel(invalid);
+    expect(
+      issues.filter((issue) => issue.includes("require saved content")),
+    ).toHaveLength(3);
+    expect(() => projectCourse(invalid, "student", { now })).toThrow(
+      /published items require saved content/,
+    );
   });
 });

@@ -15,6 +15,7 @@ Learning Loop is an experimental, learning-first LMS pilot for one Economics cla
 - A reusable, declarative Economics graph renderer, initially exercised with a supply-shift scenario.
 - Equivalent pointer, keyboard, button, and table-based interactions.
 - Separate student activity and teacher evidence/marking experiences. A clearly labelled preview switch exists only for author/demo QA.
+- A teacher-only Module Composer with contextual editing for pages, learning blocks, resources, videos, and honest draft-only assessment handoffs.
 - Minimal private mastery evidence tied to demonstrated outcomes, not time, streaks, or public ranking.
 
 Not included: payments, live AI or model-provider calls, a live MCP server, native Flutter apps, Canvas integration, parent access, attendance, public registration, remote proctoring, Python execution, or copied exam content.
@@ -43,7 +44,7 @@ later: web / Flutter
      -> optional premium AI-job service (draft-only provider adapters)
 ```
 
-See [architecture decisions](docs/ARCHITECTURE_DECISIONS.md), the [approved UX contract](docs/ECONOMICS_VERTICAL_SLICE_UX_BRIEF.md), the [teacher authoring/operations track](docs/TEACHER_AUTHORING_OPERATIONS.md), and the [PR delivery register](docs/PR_PLAN.md).
+See [architecture decisions](docs/ARCHITECTURE_DECISIONS.md), the [approved UX contract](docs/ECONOMICS_VERTICAL_SLICE_UX_BRIEF.md), the [teacher authoring/operations track](docs/TEACHER_AUTHORING_OPERATIONS.md), the [current Module Composer authoring slice](docs/AUTHORING.md), and the [PR delivery register](docs/PR_PLAN.md).
 
 ## Local setup
 
