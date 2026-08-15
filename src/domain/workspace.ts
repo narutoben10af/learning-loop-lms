@@ -283,6 +283,200 @@ function validateRevision(value: unknown, label: string): string[] {
     : [`${label} must be a positive integer`];
 }
 
+function validateExactNestedObject(
+  value: unknown,
+  allowed: readonly string[],
+  label: string,
+): string[] {
+  return isRecord(value)
+    ? unexpectedKeys(value, allowed, label)
+    : [`${label} must be an object`];
+}
+
+/**
+ * The course aggregate predates the workspace persistence envelope and its
+ * semantic validator deliberately accepts structurally typed objects. The
+ * local workspace boundary is stricter: persisted/imported data may contain
+ * only the documented fields, recursively, so private or stale properties
+ * cannot hitchhike into storage or projections.
+ */
+function validateStrictCourseModelShape(
+  value: unknown,
+  label: string,
+): string[] {
+  if (!isRecord(value)) return [`${label} must be an object`];
+  const issues = unexpectedKeys(value, ["course", "modules", "items"], label);
+  if (!isRecord(value.course)) {
+    issues.push(`${label}.course must be an object`);
+  } else {
+    issues.push(
+      ...unexpectedKeys(
+        value.course,
+        ["id", "title", "subject", "status", "revision", "audit"],
+        `${label}.course`,
+      ),
+      ...validateAudit(value.course.audit, `${label}.course.audit`),
+    );
+  }
+  if (!Array.isArray(value.modules)) {
+    issues.push(`${label}.modules must be an array`);
+  } else {
+    value.modules.forEach((module, index) => {
+      const moduleLabel = `${label}.modules[${index}]`;
+      if (!isRecord(module)) {
+        issues.push(`${moduleLabel} must be an object`);
+        return;
+      }
+      issues.push(
+        ...unexpectedKeys(
+          module,
+          [
+            "id",
+            "courseId",
+            "title",
+            "position",
+            "state",
+            "availability",
+            "prerequisiteModuleIds",
+            "completion",
+            "revision",
+            "audit",
+          ],
+          moduleLabel,
+        ),
+        ...validateExactNestedObject(
+          module.availability,
+          ["startsAt", "endsAt"],
+          `${moduleLabel}.availability`,
+        ),
+        ...validateAudit(module.audit, `${moduleLabel}.audit`),
+      );
+      if (isRecord(module.completion)) {
+        const completionKeys =
+          module.completion.type === "percentage"
+            ? ["type", "minimumPercent"]
+            : ["type"];
+        issues.push(
+          ...unexpectedKeys(
+            module.completion,
+            completionKeys,
+            `${moduleLabel}.completion`,
+          ),
+        );
+      } else {
+        issues.push(`${moduleLabel}.completion must be an object`);
+      }
+    });
+  }
+  if (!Array.isArray(value.items)) {
+    issues.push(`${label}.items must be an array`);
+  } else {
+    value.items.forEach((item, index) => {
+      const itemLabel = `${label}.items[${index}]`;
+      if (!isRecord(item)) {
+        issues.push(`${itemLabel} must be an object`);
+        return;
+      }
+      issues.push(
+        ...unexpectedKeys(
+          item,
+          [
+            "id",
+            "courseId",
+            "moduleId",
+            "type",
+            "title",
+            "position",
+            "state",
+            "availability",
+            "prerequisiteItemIds",
+            "completion",
+            "content",
+            "revision",
+            "revisionId",
+            "audit",
+          ],
+          itemLabel,
+        ),
+        ...validateExactNestedObject(
+          item.availability,
+          ["startsAt", "endsAt"],
+          `${itemLabel}.availability`,
+        ),
+        ...validateAudit(item.audit, `${itemLabel}.audit`),
+      );
+      if (isRecord(item.completion)) {
+        const completionKeys =
+          item.completion.type === "score"
+            ? ["type", "minimumScore"]
+            : ["type"];
+        issues.push(
+          ...unexpectedKeys(
+            item.completion,
+            completionKeys,
+            `${itemLabel}.completion`,
+          ),
+        );
+      } else {
+        issues.push(`${itemLabel}.completion must be an object`);
+      }
+      if (item.content !== undefined) {
+        if (!isRecord(item.content)) {
+          issues.push(`${itemLabel}.content must be an object`);
+          return;
+        }
+        const contentKeys: Record<string, readonly string[]> = {
+          text: ["kind", "body"],
+          resource: [
+            "kind",
+            "description",
+            "resourceType",
+            "url",
+            "localAttachment",
+          ],
+          video: ["kind", "description", "url", "provider"],
+          "assessment-draft": [
+            "kind",
+            "instructions",
+            "dueAt",
+            "points",
+            "builderStatus",
+          ],
+        };
+        const allowed = contentKeys[String(item.content.kind)];
+        if (allowed) {
+          issues.push(
+            ...unexpectedKeys(item.content, allowed, `${itemLabel}.content`),
+          );
+        }
+        if (
+          item.content.kind === "resource" &&
+          item.content.localAttachment !== null
+        ) {
+          issues.push(
+            ...validateExactNestedObject(
+              item.content.localAttachment,
+              ["name", "sizeBytes", "mimeType", "lastModifiedAt", "storage"],
+              `${itemLabel}.content.localAttachment`,
+            ),
+          );
+        }
+      }
+    });
+  }
+  return issues;
+}
+
+function sameAudit(left: unknown, right: unknown): boolean {
+  if (!isRecord(left) || !isRecord(right)) return false;
+  return (
+    left.createdBy === right.createdBy &&
+    left.createdAt === right.createdAt &&
+    left.updatedBy === right.updatedBy &&
+    left.updatedAt === right.updatedAt
+  );
+}
+
 function activeMemberships(
   model: WorkspaceModel,
   actor: WorkspaceActor,
@@ -368,6 +562,11 @@ export function createCourseInWorkspace(
   input: CreateWorkspaceCourseInput,
 ): WorkspaceSnapshot {
   assertValidWorkspaceSnapshot(snapshot);
+  const strictIssues = validateStrictCourseModelShape(
+    courseModel,
+    "courseModel",
+  );
+  if (strictIssues.length) throw new Error(strictIssues.join("; "));
   assertValidCourseModel(courseModel);
   const organizationMemberships = activeMemberships(
     snapshot.workspace,
@@ -384,6 +583,15 @@ export function createCourseInWorkspace(
   }
   if (courseModel.course.status !== "draft") {
     throw new Error("A new workspace course must begin in draft");
+  }
+  const expectedCourseAudit = audit(actor.principalId, input.now);
+  if (
+    courseModel.course.revision !== 1 ||
+    !sameAudit(courseModel.course.audit, expectedCourseAudit)
+  ) {
+    throw new Error(
+      "A new course model must be revision 1 and audited to its authorized creator and creation time",
+    );
   }
   if (
     snapshot.workspace.courses.some(
@@ -632,6 +840,11 @@ export function migrateLegacyCourseModel(
   courseModel: CourseModel,
   input: LegacyCourseMigrationInput,
 ): WorkspaceSnapshot {
+  const strictIssues = validateStrictCourseModelShape(
+    courseModel,
+    "legacyCourseModel",
+  );
+  if (strictIssues.length) throw new Error(strictIssues.join("; "));
   assertValidCourseModel(courseModel);
   let snapshot = createWorkspaceSnapshot(
     createWorkspace({
@@ -647,6 +860,8 @@ export function migrateLegacyCourseModel(
   migrationCourse.course = {
     ...migrationCourse.course,
     status: "draft",
+    revision: 1,
+    audit: audit(input.actorId, input.now),
   };
   snapshot = createCourseInWorkspace(
     snapshot,
@@ -938,6 +1153,9 @@ export function validateWorkspaceSnapshot(value: unknown): string[] {
       return;
     }
     try {
+      issues.push(
+        ...validateStrictCourseModelShape(candidate, `courseModels[${index}]`),
+      );
       const courseIssues = validateCourseModel(
         candidate as unknown as CourseModel,
       );
@@ -966,7 +1184,9 @@ export function validateWorkspaceSnapshot(value: unknown): string[] {
       if (
         candidate.title !== courseModel.course.title ||
         candidate.subject !== courseModel.course.subject ||
-        candidate.lifecycle !== courseModel.course.status
+        candidate.lifecycle !== courseModel.course.status ||
+        candidate.revision !== courseModel.course.revision ||
+        !sameAudit(candidate.audit, courseModel.course.audit)
       ) {
         issues.push(`courses[${index}] does not match its course model`);
       }

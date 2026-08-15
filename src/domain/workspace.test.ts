@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createCourse, type CourseModel } from "./course";
+import {
+  createCourse,
+  createModule,
+  createModuleItem,
+  type CourseModel,
+} from "./course";
 import {
   WORKSPACE_SCHEMA_VERSION,
   WORKSPACE_STORAGE_KEY,
@@ -33,6 +38,7 @@ function courseModel(
   id: string,
   title: string,
   subject = "Economics",
+  createdAt = now,
 ): CourseModel {
   return {
     course: createCourse({
@@ -40,11 +46,39 @@ function courseModel(
       title,
       subject,
       actorId: teacher.principalId,
-      now,
+      now: createdAt,
     }),
     modules: [],
     items: [],
   };
+}
+
+function courseModelWithContent(): CourseModel {
+  const model = courseModel("econ-shaped", "Economics shaped course");
+  model.modules.push(
+    createModule({
+      id: "module-shaped",
+      courseId: model.course.id,
+      title: "Market foundations",
+      position: 0,
+      actorId: teacher.principalId,
+      now,
+    }),
+  );
+  model.items.push(
+    createModuleItem({
+      id: "item-shaped",
+      courseId: model.course.id,
+      moduleId: "module-shaped",
+      type: "page",
+      title: "Demand recap",
+      position: 0,
+      actorId: teacher.principalId,
+      now,
+      content: { kind: "text", body: "Original synthetic content." },
+    }),
+  );
+  return model;
 }
 
 function emptySnapshot(): WorkspaceSnapshot {
@@ -145,7 +179,7 @@ describe("workspace and course catalogue domain", () => {
       createCourseInWorkspace(
         first,
         teacher,
-        courseModel("econ-copy", "Economics copy"),
+        courseModel("econ-copy", "Economics copy", "Economics", later),
         {
           code: "econ-10a",
           term: "Term 1 · 2026",
@@ -373,6 +407,113 @@ describe("workspace and course catalogue domain", () => {
         courseModels: [null],
       }),
     ).not.toEqual([]);
+  });
+
+  it("rejects unknown fields throughout nested course aggregates", () => {
+    const base = createCourseInWorkspace(
+      emptySnapshot(),
+      teacher,
+      courseModelWithContent(),
+      {
+        code: "ECON-SHAPED",
+        term: "Term 1 · 2026",
+        section: "10B",
+        creatorMembershipId: "membership-econ-shaped-teacher-1",
+        now,
+      },
+    );
+    const mutations: Array<(model: Record<string, unknown>) => void> = [
+      (model) => {
+        model.secret = "root-secret";
+      },
+      (model) => {
+        (model.course as Record<string, unknown>).secret = "course-secret";
+      },
+      (model) => {
+        const course = model.course as Record<string, unknown>;
+        (course.audit as Record<string, unknown>).requestContext = "private";
+      },
+      (model) => {
+        (model.modules as Array<Record<string, unknown>>)[0].teacherNotes =
+          "module-secret";
+      },
+      (model) => {
+        const module = (model.modules as Array<Record<string, unknown>>)[0];
+        (module.availability as Record<string, unknown>).internalWindow = true;
+      },
+      (model) => {
+        (model.items as Array<Record<string, unknown>>)[0].privateNote =
+          "item-secret";
+      },
+      (model) => {
+        const item = (model.items as Array<Record<string, unknown>>)[0];
+        (item.completion as Record<string, unknown>).rawScore = 99;
+      },
+      (model) => {
+        const item = (model.items as Array<Record<string, unknown>>)[0];
+        (item.content as Record<string, unknown>).bytes = "raw-private-data";
+      },
+    ];
+
+    for (const mutate of mutations) {
+      const candidate = structuredClone(base);
+      mutate(candidate.courseModels[0] as unknown as Record<string, unknown>);
+      expect(validateWorkspaceSnapshot(candidate).join(";")).toMatch(
+        /unsupported fields/i,
+      );
+    }
+  });
+
+  it("binds new course identity, revision, and audit to the authorized create command", () => {
+    const wrongRevision = courseModel("econ-revision", "Wrong revision");
+    wrongRevision.course.revision = 2;
+    expect(() =>
+      createCourseInWorkspace(emptySnapshot(), teacher, wrongRevision, {
+        code: "ECON-REV",
+        term: "Term 1 · 2026",
+        section: "10R",
+        creatorMembershipId: "membership-econ-revision-teacher-1",
+        now,
+      }),
+    ).toThrow(/revision 1.*audited/i);
+
+    const wrongActor = courseModel("econ-actor", "Wrong actor");
+    wrongActor.course.audit.createdBy = "different-teacher";
+    wrongActor.course.audit.updatedBy = "different-teacher";
+    expect(() =>
+      createCourseInWorkspace(emptySnapshot(), teacher, wrongActor, {
+        code: "ECON-ACTOR",
+        term: "Term 1 · 2026",
+        section: "10A",
+        creatorMembershipId: "membership-econ-actor-teacher-1",
+        now,
+      }),
+    ).toThrow(/revision 1.*audited/i);
+
+    const wrongTime = courseModel("econ-time", "Wrong time");
+    expect(() =>
+      createCourseInWorkspace(emptySnapshot(), teacher, wrongTime, {
+        code: "ECON-TIME",
+        term: "Term 1 · 2026",
+        section: "10T",
+        creatorMembershipId: "membership-econ-time-teacher-1",
+        now: later,
+      }),
+    ).toThrow(/revision 1.*audited/i);
+  });
+
+  it("requires catalogue and course aggregate revision and audit to stay synchronized", () => {
+    const revisionMismatch = withCourse();
+    revisionMismatch.workspace.courses[0].revision += 1;
+    expect(validateWorkspaceSnapshot(revisionMismatch).join(";")).toMatch(
+      /does not match its course model/i,
+    );
+
+    const auditMismatch = withCourse();
+    auditMismatch.workspace.courses[0].audit.updatedBy = "someone-else";
+    expect(validateWorkspaceSnapshot(auditMismatch).join(";")).toMatch(
+      /does not match its course model/i,
+    );
   });
 
   it("persists exact validated data and falls back on malformed or stale JSON", () => {
