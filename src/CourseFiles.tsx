@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type {
-  CourseMediaProjection,
-  MediaProjectionItem,
-  MediaSource,
+import {
+  isAllowedLocalFileMimeType,
+  type CourseMediaProjection,
+  type MediaProjectionItem,
+  type MediaSource,
 } from "./domain/media";
 
 type EditorKind = MediaSource["kind"];
@@ -39,10 +40,15 @@ function fileSize(bytes: number): string {
 
 function YouTubeResource({ item }: { item: MediaProjectionItem }) {
   const [loaded, setLoaded] = useState(false);
+  const frameRef = useRef<HTMLIFrameElement>(null);
+  useEffect(() => {
+    if (loaded) frameRef.current?.focus();
+  }, [loaded]);
   if (item.source.kind !== "youtube") return null;
   return loaded ? (
     <div className="youtube-frame-wrap">
       <iframe
+        ref={frameRef}
         src={`https://www.youtube-nocookie.com/embed/${item.source.videoId}`}
         title={item.title}
         allow="accelerometer; encrypted-media; picture-in-picture"
@@ -96,6 +102,7 @@ export function CourseFiles({
   const editRefs = useRef(new Map<string, HTMLButtonElement>());
   const previewUrlsRef = useRef(new Set<string>());
   const editorOpen = editingId !== null;
+  const editingItem = projection.assets.find((item) => item.id === editingId);
 
   useEffect(() => {
     if (editorOpen) titleRef.current?.focus();
@@ -175,6 +182,14 @@ export function CourseFiles({
       setDraft((current) => ({ ...current, localSource: null }));
       return;
     }
+    if (!isAllowedLocalFileMimeType(file.type)) {
+      setError(
+        "Choose a PNG, JPEG, GIF, WebP, PDF, text, CSV, Word, PowerPoint, or Excel file.",
+      );
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
+    setError("");
     setDraft((current) => ({
       ...current,
       title: current.title || file.name.replace(/\.[^.]+$/, ""),
@@ -243,7 +258,11 @@ export function CourseFiles({
         return next;
       });
     }
-    setStatus("Resource saved as a private draft.");
+    setStatus(
+      editingItem?.state === "published"
+        ? "Changes saved as a private draft. Students no longer see this resource until you publish it again."
+        : "Resource saved as a private draft.",
+    );
     setDraft(emptyDraft);
     setEditingId(null);
     setRestoreFocusId(result.id);
@@ -373,6 +392,12 @@ export function CourseFiles({
               device-local drafts: bytes and object URLs are never saved or
               shown to students.
             </p>
+            {editingItem?.state === "published" && (
+              <p className="field-note">
+                Saving changes withdraws this published resource from students
+                until you review and publish the new draft.
+              </p>
+            )}
           </div>
           <div className="media-editor-fields">
             <label>
@@ -455,6 +480,10 @@ export function CourseFiles({
                         onClick={() => {
                           chooseFile(undefined);
                           if (fileRef.current) fileRef.current.value = "";
+                          setStatus(
+                            "Local file selection removed. Choose another file or close the editor.",
+                          );
+                          fileRef.current?.focus();
                         }}
                       >
                         Remove selection
@@ -522,7 +551,7 @@ export function CourseFiles({
         </section>
       )}
 
-      <p className="sr-only" aria-live="polite">
+      <p className="sr-only" role="status" aria-live="polite">
         {status}
       </p>
       {!editorOpen && error && (
@@ -605,45 +634,53 @@ export function CourseFiles({
                   </p>
                 )}
                 <div className="media-card-actions">
-                  <button
-                    ref={(node) => {
-                      if (node) editRefs.current.set(item.id, node);
-                      else editRefs.current.delete(item.id);
-                    }}
-                    className="button quiet"
-                    type="button"
-                    aria-label={`Edit ${item.title}`}
-                    disabled={editorOpen}
-                    onClick={() => openEdit(item)}
-                  >
-                    {editingId === item.id ? "Editing" : "Edit"}
-                  </button>
-                  {item.state === "draft" &&
-                    item.source.kind !== "local-file" && (
-                      <button
-                        className="button primary"
-                        type="button"
-                        aria-label={`Publish ${item.title}`}
-                        disabled={editingId === item.id}
-                        onClick={() => publish(item)}
-                      >
-                        Publish
-                      </button>
-                    )}
-                  {item.source.kind === "local-file" && (
+                  {item.state === "archived" ? (
                     <span className="media-publish-boundary">
-                      Needs durable storage before release
+                      Archived · read-only
                     </span>
+                  ) : (
+                    <>
+                      <button
+                        ref={(node) => {
+                          if (node) editRefs.current.set(item.id, node);
+                          else editRefs.current.delete(item.id);
+                        }}
+                        className="button quiet"
+                        type="button"
+                        aria-label={`Edit ${item.title}`}
+                        disabled={editorOpen}
+                        onClick={() => openEdit(item)}
+                      >
+                        {editingId === item.id ? "Editing" : "Edit"}
+                      </button>
+                      {item.state === "draft" &&
+                        item.source.kind !== "local-file" && (
+                          <button
+                            className="button primary"
+                            type="button"
+                            aria-label={`Publish ${item.title}`}
+                            disabled={editingId === item.id}
+                            onClick={() => publish(item)}
+                          >
+                            Publish
+                          </button>
+                        )}
+                      {item.source.kind === "local-file" && (
+                        <span className="media-publish-boundary">
+                          Needs durable storage before release
+                        </span>
+                      )}
+                      <button
+                        className="button quiet danger-text"
+                        type="button"
+                        aria-label={`Archive ${item.title}`}
+                        disabled={editingId === item.id}
+                        onClick={() => archive(item)}
+                      >
+                        Archive
+                      </button>
+                    </>
                   )}
-                  <button
-                    className="button quiet danger-text"
-                    type="button"
-                    aria-label={`Archive ${item.title}`}
-                    disabled={editingId === item.id}
-                    onClick={() => archive(item)}
-                  >
-                    Archive
-                  </button>
                 </div>
               </article>
             ))

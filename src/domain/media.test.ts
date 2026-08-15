@@ -3,6 +3,7 @@ import { createCourse } from "./course";
 import {
   MEDIA_STORAGE_KEY,
   addMediaDraft,
+  archiveMedia,
   createMediaSnapshot,
   loadMediaSnapshot,
   normalizeHttpsUrl,
@@ -177,6 +178,9 @@ describe("course media domain", () => {
 
   it("rejects unsafe URLs and normalizes supported YouTube links", () => {
     expect(() => normalizeHttpsUrl("javascript:alert(1)")).toThrow(/HTTPS/);
+    expect(() =>
+      normalizeHttpsUrl("https://teacher:secret@example.edu/resource"),
+    ).toThrow(/username or password/);
     expect(normalizeYouTubeSource("https://youtu.be/abcdefghijk")).toEqual({
       url: "https://www.youtube.com/watch?v=abcdefghijk",
       videoId: "abcdefghijk",
@@ -184,6 +188,78 @@ describe("course media domain", () => {
     expect(() => normalizeYouTubeSource("https://video.example/test")).toThrow(
       /valid YouTube/,
     );
+  });
+
+  it("fails closed when stored or projected links contain credentials", () => {
+    const workspace = buildWorkspace();
+    const fallback = createMediaSnapshot(
+      organizationId,
+      owner.principalId,
+      now,
+    );
+    let unsafe = addMediaDraft(fallback, workspace, teacher, {
+      id: "resource-credential",
+      courseId: "econ-10a",
+      title: "Credential leak",
+      description: "Must never enter a learner projection.",
+      source: { kind: "link", url: "https://example.edu/resource" },
+      now,
+    });
+    unsafe = structuredClone(unsafe);
+    const source = unsafe.assets[0].source;
+    if (source.kind !== "link") throw new Error("Expected a link fixture");
+    source.url = "https://teacher:secret@example.edu/resource";
+
+    expect(() =>
+      projectCourseMedia(unsafe, workspace, student, "econ-10a"),
+    ).toThrow(/username or password/);
+    expect(
+      loadMediaSnapshot(
+        {
+          getItem: () => JSON.stringify(unsafe),
+          setItem: () => undefined,
+        },
+        fallback,
+      ),
+    ).toEqual(fallback);
+  });
+
+  it("makes archived media terminal and read-only", () => {
+    const workspace = buildWorkspace();
+    let media = createMediaSnapshot(organizationId, owner.principalId, now);
+    media = addMediaDraft(media, workspace, teacher, {
+      id: "resource-archived",
+      courseId: "econ-10a",
+      title: "Archived reading",
+      description: "No longer used.",
+      source: { kind: "link", url: "https://example.edu/archive" },
+      now,
+    });
+    media = archiveMedia(media, workspace, teacher, "resource-archived", now);
+    expect(() =>
+      archiveMedia(media, workspace, teacher, "resource-archived", now),
+    ).toThrow(/already archived/);
+  });
+
+  it("rejects unsupported local file MIME metadata", () => {
+    const workspace = buildWorkspace();
+    const media = createMediaSnapshot(organizationId, owner.principalId, now);
+    expect(() =>
+      addMediaDraft(media, workspace, teacher, {
+        id: "file-unsafe",
+        courseId: "econ-10a",
+        title: "Executable",
+        description: "Unsupported local type.",
+        source: {
+          kind: "local-file",
+          fileName: "unsafe.html",
+          mimeType: "text/html",
+          sizeBytes: 10,
+          lastModified: 100,
+        },
+        now,
+      }),
+    ).toThrow(/not an allowed local draft type/);
   });
 
   it("denies an unassigned teacher and a learner in a private course", () => {

@@ -289,6 +289,14 @@ describe("learning-loop prototype", () => {
     fireEvent.change(screen.getByLabelText("Choose or replace local file"), {
       target: { files: [file] },
     });
+    fireEvent.click(screen.getByRole("button", { name: "Remove selection" }));
+    expect(screen.getByLabelText("Choose or replace local file")).toHaveFocus();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Local file selection removed",
+    );
+    fireEvent.change(screen.getByLabelText("Choose or replace local file"), {
+      target: { files: [file] },
+    });
     fireEvent.change(screen.getByLabelText("Description"), {
       target: { value: "A device-local draft diagram." },
     });
@@ -370,6 +378,53 @@ describe("learning-loop prototype", () => {
       "src",
       "https://www.youtube-nocookie.com/embed/abcdefghijk",
     );
+    expect(
+      within(studentCard as HTMLElement).getByTitle(
+        "Market adjustment explainer",
+      ),
+    ).toHaveFocus();
+  });
+
+  it("makes archived resources read-only and discloses published edit withdrawal", () => {
+    render(createElement(App));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open course workspace" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Files" }));
+    const publishedCard = screen
+      .getByText("Price controls: synthetic guided reading")
+      .closest("article");
+    fireEvent.click(
+      within(publishedCard as HTMLElement).getByRole("button", {
+        name: "Edit Price controls: synthetic guided reading",
+      }),
+    );
+    expect(screen.getByText(/Saving changes withdraws/)).toBeVisible();
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Revised synthetic resource guidance." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Students no longer see this resource",
+    );
+
+    const revisedCard = screen
+      .getByText("Price controls: synthetic guided reading")
+      .closest("article");
+    fireEvent.click(
+      within(revisedCard as HTMLElement).getByRole("button", {
+        name: "Archive Price controls: synthetic guided reading",
+      }),
+    );
+    const archivedCard = screen
+      .getByText("Price controls: synthetic guided reading")
+      .closest("article");
+    expect(archivedCard).toHaveTextContent("Archived · read-only");
+    expect(
+      within(archivedCard as HTMLElement).queryByRole("button", {
+        name: /Edit|Archive/,
+      }),
+    ).toBeNull();
   });
 
   it("restores the complete teacher course route through browser history", () => {

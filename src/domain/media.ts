@@ -74,6 +74,25 @@ const authorRoles: readonly WorkspaceRole[] = [
   "teacher",
 ];
 const states: readonly MediaState[] = ["draft", "published", "archived"];
+export const ALLOWED_LOCAL_FILE_MIME_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "application/pdf",
+  "text/plain",
+  "text/csv",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+] as const;
+
+export function isAllowedLocalFileMimeType(value: string): boolean {
+  return (ALLOWED_LOCAL_FILE_MIME_TYPES as readonly string[]).includes(value);
+}
 
 function clone<T>(value: T): T {
   return structuredClone(value);
@@ -193,6 +212,9 @@ export function normalizeHttpsUrl(value: string): string {
   const parsed = new URL(requiredText(value, "url"));
   if (parsed.protocol !== "https:") {
     throw new Error("Only HTTPS links are allowed");
+  }
+  if (parsed.username || parsed.password) {
+    throw new Error("Links cannot contain a username or password");
   }
   return parsed.toString();
 }
@@ -410,6 +432,9 @@ export function archiveMedia(
   const current = snapshot.assets.find((asset) => asset.id === id);
   if (!current) throw new Error("Media does not exist");
   assertCanAuthor(snapshot, workspace, actor, current.courseId);
+  if (current.state === "archived") {
+    throw new Error("Media is already archived");
+  }
   const next = clone(snapshot);
   const index = next.assets.findIndex((asset) => asset.id === id);
   next.assets[index] = {
@@ -523,10 +548,14 @@ function validateSource(value: unknown): string[] {
       ["kind", "fileName", "mimeType", "sizeBytes", "lastModified"],
       "media.source",
     );
-    for (const field of ["fileName", "mimeType"] as const) {
-      if (typeof value[field] !== "string" || !value[field].trim()) {
-        issues.push(`media.source.${field} is required`);
-      }
+    if (typeof value.fileName !== "string" || !value.fileName.trim()) {
+      issues.push("media.source.fileName is required");
+    }
+    if (
+      typeof value.mimeType !== "string" ||
+      !isAllowedLocalFileMimeType(value.mimeType)
+    ) {
+      issues.push("media.source.mimeType is not an allowed local draft type");
     }
     if (!Number.isInteger(value.sizeBytes) || Number(value.sizeBytes) < 0) {
       issues.push("media.source.sizeBytes must be a non-negative integer");
