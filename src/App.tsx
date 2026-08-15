@@ -22,7 +22,6 @@ import {
   type Shift,
 } from "./domain/activity";
 import {
-  assertValidCourseModel,
   createCourse,
   createModule,
   createModuleItem,
@@ -41,8 +40,28 @@ import {
   type ModuleItemType,
   type ReleaseState,
 } from "./domain/course";
+import {
+  WORKSPACE_STORAGE_KEY,
+  addWorkspaceMembership,
+  assertValidWorkspaceSnapshot,
+  createCourseInWorkspace,
+  createWorkspace,
+  createWorkspaceSnapshot,
+  loadWorkspaceSnapshot,
+  projectWorkspace,
+  saveWorkspaceSnapshot,
+  transitionWorkspaceCourse,
+  type WorkspaceActor,
+  type WorkspaceMembership,
+  type WorkspaceSnapshot,
+} from "./domain/workspace";
 import { EconomicsGraph } from "./graph/EconomicsGraph";
 import { ebikeMarketScenario } from "./graph/scenarios";
+import {
+  WorkspaceDashboard,
+  type CreateCourseDraft,
+  type WorkspaceCourseSummary,
+} from "./WorkspaceDashboard";
 
 const predictionOptions: Array<{ value: Prediction; label: string }> = [
   { value: "price-down-quantity-up", label: "Price falls and quantity rises" },
@@ -73,6 +92,19 @@ const demoStudents = [
 
 const DEMO_NOW = "2026-08-15T09:00:00.000Z";
 const COURSE_STORAGE_KEY = "learning-loop-course-model-v1";
+const DEMO_ORGANIZATION_ID = "learning-loop-demo-school";
+const teacherActor: WorkspaceActor = {
+  principalId: "teacher-1",
+  organizationId: DEMO_ORGANIZATION_ID,
+};
+const studentActor: WorkspaceActor = {
+  principalId: "student-1",
+  organizationId: DEMO_ORGANIZATION_ID,
+};
+const ownerActor: WorkspaceActor = {
+  principalId: "owner-1",
+  organizationId: DEMO_ORGANIZATION_ID,
+};
 
 function buildPilotCourseModel(): CourseModel {
   const course = createCourse({
@@ -202,23 +234,146 @@ function buildPilotCourseModel(): CourseModel {
 
 const pilotCourseModel = buildPilotCourseModel();
 
-function loadCourseModel(storage: Storage): CourseModel {
-  const serialized = storage.getItem(COURSE_STORAGE_KEY);
-  if (!serialized) return structuredClone(pilotCourseModel);
-  try {
-    const parsed = JSON.parse(serialized) as CourseModel;
-    assertValidCourseModel(parsed);
-    return parsed;
-  } catch {
-    return structuredClone(pilotCourseModel);
-  }
+function demoMembership(
+  id: string,
+  principalId: string,
+  role: WorkspaceMembership["role"],
+  courseId: string | null,
+): WorkspaceMembership {
+  return {
+    id,
+    organizationId: DEMO_ORGANIZATION_ID,
+    courseId,
+    principalId,
+    role,
+    status: "active",
+    revision: 1,
+    audit: {
+      createdBy: ownerActor.principalId,
+      createdAt: DEMO_NOW,
+      updatedBy: ownerActor.principalId,
+      updatedAt: DEMO_NOW,
+    },
+  };
 }
 
-function saveCourseModel(storage: Storage, course: CourseModel): void {
-  storage.setItem(COURSE_STORAGE_KEY, JSON.stringify(course));
+function buildPilotWorkspaceSnapshot(): WorkspaceSnapshot {
+  let snapshot = createWorkspaceSnapshot(
+    createWorkspace({
+      organizationId: DEMO_ORGANIZATION_ID,
+      organizationName: "Learning Loop Demo School",
+      actorId: ownerActor.principalId,
+      actorRole: "platform-owner",
+      actorMembershipId: "membership-owner-1",
+      now: DEMO_NOW,
+    }),
+  );
+  snapshot = addWorkspaceMembership(
+    snapshot,
+    ownerActor,
+    demoMembership(
+      "membership-org-teacher-1",
+      teacherActor.principalId,
+      "teacher",
+      null,
+    ),
+    DEMO_NOW,
+  );
+  const draftPilot = structuredClone(pilotCourseModel);
+  draftPilot.course.status = "draft";
+  snapshot = createCourseInWorkspace(snapshot, teacherActor, draftPilot, {
+    code: "ECON-10A",
+    term: "Term 1 · 2026",
+    section: "10A",
+    visibility: "enrolled-members",
+    creatorMembershipId: "membership-econ-10a-teacher-1",
+    now: DEMO_NOW,
+  });
+  snapshot = transitionWorkspaceCourse(
+    snapshot,
+    teacherActor,
+    draftPilot.course.id,
+    "active",
+    DEMO_NOW,
+  );
+  snapshot = addWorkspaceMembership(
+    snapshot,
+    ownerActor,
+    demoMembership(
+      "membership-econ-10a-student-1",
+      studentActor.principalId,
+      "student",
+      draftPilot.course.id,
+    ),
+    DEMO_NOW,
+  );
+  return snapshot;
+}
+
+const pilotWorkspaceSnapshot = buildPilotWorkspaceSnapshot();
+
+function loadAppWorkspace(storage: Storage): WorkspaceSnapshot {
+  const loaded = loadWorkspaceSnapshot(storage, {
+    fallback: pilotWorkspaceSnapshot,
+    legacyCourseKey: COURSE_STORAGE_KEY,
+    legacyMigration: {
+      organizationId: DEMO_ORGANIZATION_ID,
+      organizationName: "Learning Loop Demo School",
+      actorId: teacherActor.principalId,
+      actorMembershipId: "membership-org-teacher-1",
+      courseMembershipId: "membership-econ-10a-teacher-1",
+      code: "ECON-10A",
+      term: "Term 1 · 2026",
+      section: "10A",
+      visibility: "enrolled-members",
+      now: DEMO_NOW,
+    },
+  });
+  const hasPilot = loaded.workspace.courses.some(
+    (course) => course.id === pilotCourseModel.course.id,
+  );
+  const hasStudent = loaded.workspace.memberships.some(
+    (membership) =>
+      membership.courseId === pilotCourseModel.course.id &&
+      membership.principalId === studentActor.principalId &&
+      membership.role === "student" &&
+      membership.status === "active",
+  );
+  if (!hasPilot || hasStudent) return loaded;
+  const migrated = structuredClone(loaded);
+  const migrationAt = new Date(
+    Math.max(
+      Date.parse(migrated.workspace.audit.updatedAt),
+      Date.parse(DEMO_NOW),
+    ),
+  ).toISOString();
+  migrated.workspace.memberships.push({
+    ...demoMembership(
+      "membership-econ-10a-student-1",
+      studentActor.principalId,
+      "student",
+      pilotCourseModel.course.id,
+    ),
+    audit: {
+      createdBy: teacherActor.principalId,
+      createdAt: migrationAt,
+      updatedBy: teacherActor.principalId,
+      updatedAt: migrationAt,
+    },
+  });
+  migrated.workspace.revision += 1;
+  migrated.workspace.audit = {
+    ...migrated.workspace.audit,
+    updatedBy: teacherActor.principalId,
+    updatedAt: migrationAt,
+  };
+  assertValidWorkspaceSnapshot(migrated);
+  return migrated;
 }
 
 type DemoScreen =
+  | "teacher-dashboard"
+  | "student-dashboard"
   | "student-course"
   | "student-activity"
   | "teacher-composer"
@@ -237,9 +392,35 @@ function PreviewHeader({
   setScreen: (screen: DemoScreen) => void;
 }) {
   const role: DomainRole = screen.startsWith("teacher") ? "teacher" : "student";
+  if (role === "student") {
+    return (
+      <header className="app-header student-app-header">
+        <button
+          className="brand brand-button"
+          type="button"
+          onClick={() => setScreen("student-dashboard")}
+          aria-label="Learning Loop student courses"
+        >
+          <span className="brand-mark" aria-hidden="true">
+            LL
+          </span>
+          <span>
+            <strong>Learning Loop</strong>
+            <small>Student workspace</small>
+          </span>
+        </button>
+        <span className="student-account-badge">Maya · My courses</span>
+      </header>
+    );
+  }
   return (
     <header className="app-header">
-      <a className="brand" href="#main-content" aria-label="Learning Loop home">
+      <button
+        className="brand brand-button"
+        type="button"
+        onClick={() => setScreen("teacher-dashboard")}
+        aria-label="Learning Loop teacher workspace"
+      >
         <span className="brand-mark" aria-hidden="true">
           LL
         </span>
@@ -247,7 +428,7 @@ function PreviewHeader({
           <strong>Learning Loop</strong>
           <small>Economics pilot</small>
         </span>
-      </a>
+      </button>
       <div className="preview-wrap">
         <div className="preview-label">
           <strong>Demo entry</strong>
@@ -260,23 +441,23 @@ function PreviewHeader({
         >
           <button
             type="button"
-            aria-pressed={role === "student"}
-            onClick={() => setScreen("student-course")}
+            aria-pressed={false}
+            onClick={() => setScreen("student-dashboard")}
           >
-            Student course
+            Student courses
           </button>
           <button
             type="button"
-            aria-pressed={role === "teacher"}
-            onClick={() => setScreen("teacher-composer")}
+            aria-pressed
+            onClick={() => setScreen("teacher-dashboard")}
           >
             Teacher workspace
           </button>
         </div>
         <p className="preview-note">
-          Student opens course modules and completes work · Teacher authors,
-          previews, and reviews evidence. Production accounts never show this
-          demo entry.
+          Use this author/QA entry before opening a production-separated view.
+          Student screens never show this switch; browser Back returns from a
+          teacher preview.
         </p>
       </div>
     </header>
@@ -705,26 +886,32 @@ function StudentCourseHome({
         month: "short",
       })
     : "No scheduled release";
+  const isEconomicsPilot = course.course.id === pilotCourseModel.course.id;
   return (
     <main id="main-content" className="page-shell course-home-shell">
       <nav className="course-nav" aria-label="Student course navigation">
-        <span className="course-nav-title">Economics 10A</span>
+        <span className="course-nav-title">{course.course.title}</span>
         <span className="course-nav-links">
           <span className="course-nav-current" aria-current="page">
             Course home
           </span>
-          <button type="button" onClick={onOpenActivity}>
-            Open activity
-          </button>
+          {isEconomicsPilot && (
+            <button type="button" onClick={onOpenActivity}>
+              Open activity
+            </button>
+          )}
         </span>
       </nav>
       <section className="course-hero">
         <div>
-          <p className="eyebrow">Student course · Microeconomics</p>
-          <h1>Economics 10A</h1>
+          <p className="eyebrow">Student course · {course.course.subject}</p>
+          <h1>{course.course.title}</h1>
           <p className="hero-copy">
-            A clear path through market signals, policy choices, and data
-            response. Your next step is ready when you are.
+            {isEconomicsPilot
+              ? "A clear path through market signals, policy choices, and data response. Your next step is ready when you are."
+              : course.course.status === "draft"
+                ? "Student preview is empty until this private draft is deliberately activated and its first module is published."
+                : "Your teacher has arranged the available learning in one clear path."}
           </p>
         </div>
         <aside
@@ -742,8 +929,14 @@ function StudentCourseHome({
       <section className="course-overview" aria-label="Course overview">
         <div>
           <span>Current focus</span>
-          <strong>Market equilibrium</strong>
-          <small>1 learning activity · 8 minutes</small>
+          <strong>
+            {isEconomicsPilot ? "Market equilibrium" : course.course.subject}
+          </strong>
+          <small>
+            {isEconomicsPilot
+              ? "1 learning activity · 8 minutes"
+              : `${visibleModules.length} released modules`}
+          </small>
         </div>
         <div>
           <span>Course rhythm</span>
@@ -1298,7 +1491,11 @@ function TeacherComposer({
   setItemDrafts: Dispatch<SetStateAction<Record<string, ItemDraft>>>;
 }) {
   const [selectedModuleId, setSelectedModuleId] = useState(
-    pilotCourseModel.modules[0].id,
+    course.modules.some(
+      (module) => module.id === pilotCourseModel.modules[0].id,
+    )
+      ? pilotCourseModel.modules[0].id
+      : (course.modules[0]?.id ?? ""),
   );
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editorErrors, setEditorErrors] = useState<Record<string, string>>({});
@@ -1317,6 +1514,14 @@ function TeacherComposer({
   const selectedItems = course.items
     .filter((item) => item.moduleId === selectedModule.id)
     .sort((a, b) => a.position - b.position);
+  const operationNow = new Date(
+    Math.max(
+      Date.now(),
+      Date.parse(course.course.audit.updatedAt),
+      ...course.modules.map((module) => Date.parse(module.audit.updatedAt)),
+      ...course.items.map((item) => Date.parse(item.audit.updatedAt)),
+    ),
+  ).toISOString();
 
   const replaceItems = (nextItems: ModuleItem[]) => {
     setCourse((current) => ({
@@ -1333,12 +1538,15 @@ function TeacherComposer({
       "Learning block";
     let nextItemNumber = 1;
     while (
-      course.items.some((item) => item.id === `composer-item-${nextItemNumber}`)
+      course.items.some(
+        (item) =>
+          item.id === `${course.course.id}-composer-item-${nextItemNumber}`,
+      )
     ) {
       nextItemNumber += 1;
     }
     const item = createModuleItem({
-      id: `composer-item-${nextItemNumber}`,
+      id: `${course.course.id}-composer-item-${nextItemNumber}`,
       courseId: course.course.id,
       moduleId: selectedModule.id,
       type,
@@ -1346,7 +1554,7 @@ function TeacherComposer({
       position: selectedItems.length,
       state: "draft",
       actorId: "teacher-1",
-      now: DEMO_NOW,
+      now: operationNow,
     });
     replaceItems([...selectedItems, item]);
     setItemDrafts((current) => ({ ...current, [item.id]: draftForItem(item) }));
@@ -1370,7 +1578,7 @@ function TeacherComposer({
         itemId,
         targetPosition,
         "teacher-1",
-        DEMO_NOW,
+        operationNow,
       ),
     );
     if (item) {
@@ -1386,7 +1594,7 @@ function TeacherComposer({
         moduleId,
         targetPosition,
         "teacher-1",
-        DEMO_NOW,
+        operationNow,
       ),
     }));
     if (module) {
@@ -1396,7 +1604,9 @@ function TeacherComposer({
     }
   };
   const setItemState = (item: ModuleItem, nextState: ReleaseState) => {
-    updateItem(transitionReleaseState(item, nextState, "teacher-1", DEMO_NOW));
+    updateItem(
+      transitionReleaseState(item, nextState, "teacher-1", operationNow),
+    );
   };
   const openEditor = (item: ModuleItem) => {
     if (editingItemId === item.id) return;
@@ -1426,7 +1636,7 @@ function TeacherComposer({
             content: draft.content,
           },
           "teacher-1",
-          DEMO_NOW,
+          operationNow,
         ),
       );
       setEditorErrors((current) => {
@@ -1458,20 +1668,20 @@ function TeacherComposer({
       ...current,
       modules: current.modules.map((module) =>
         module.id === selectedModule.id
-          ? transitionReleaseState(module, nextState, "teacher-1", DEMO_NOW)
+          ? transitionReleaseState(module, nextState, "teacher-1", operationNow)
           : module,
       ),
     }));
   };
   const addModule = () => {
     const module = createModule({
-      id: `composer-module-${course.modules.length + 1}`,
+      id: `${course.course.id}-composer-module-${course.modules.length + 1}`,
       courseId: course.course.id,
       title: `New module ${course.modules.length + 1}`,
       position: course.modules.length,
       state: "draft",
       actorId: "teacher-1",
-      now: DEMO_NOW,
+      now: operationNow,
     });
     setCourse((current) => ({
       ...current,
@@ -1486,16 +1696,19 @@ function TeacherComposer({
         className="course-nav teacher-nav"
         aria-label="Teacher course navigation"
       >
-        <span className="course-nav-title">
-          Teacher workspace · Economics 10A
-        </span>
+        <button type="button" onClick={() => setScreen("teacher-dashboard")}>
+          ← My workspace
+        </button>
         <span className="course-nav-links">
+          <span className="course-nav-title">{course.course.title}</span>
           <span className="course-nav-current" aria-current="page">
             Module Composer
           </span>
-          <button type="button" onClick={() => setScreen("teacher-evidence")}>
-            Evidence &amp; marking
-          </button>
+          {course.course.id === pilotCourseModel.course.id && (
+            <button type="button" onClick={() => setScreen("teacher-evidence")}>
+              Evidence &amp; marking
+            </button>
+          )}
         </span>
       </nav>
       <section className="composer-hero">
@@ -2124,9 +2337,12 @@ function TeacherEvidence({
 }
 
 export function App() {
-  const [screen, setScreen] = useState<DemoScreen>("student-course");
-  const [course, setCourse] = useState<CourseModel>(() =>
-    loadCourseModel(window.localStorage),
+  const [screen, setScreenState] = useState<DemoScreen>("teacher-dashboard");
+  const [workspaceSnapshot, setWorkspaceSnapshot] = useState<WorkspaceSnapshot>(
+    () => loadAppWorkspace(window.localStorage),
+  );
+  const [selectedCourseId, setSelectedCourseId] = useState(
+    pilotCourseModel.course.id,
   );
   const [composerDrafts, setComposerDrafts] = useState<
     Record<string, ItemDraft>
@@ -2140,14 +2356,206 @@ export function App() {
     saveActivityState(window.localStorage, state);
   }, [state]);
   useEffect(() => {
-    saveCourseModel(window.localStorage, course);
-  }, [course]);
+    saveWorkspaceSnapshot(window.localStorage, workspaceSnapshot);
+  }, [workspaceSnapshot]);
+  useEffect(() => {
+    const onPopState = (event: PopStateEvent) => {
+      const next = (event.state as { learningLoopScreen?: DemoScreen } | null)
+        ?.learningLoopScreen;
+      setScreenState(next ?? "teacher-dashboard");
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  const setScreen = (next: DemoScreen) => {
+    window.history.pushState({ learningLoopScreen: next }, "", `#${next}`);
+    setScreenState(next);
+  };
+
+  const selectedCourse =
+    workspaceSnapshot.courseModels.find(
+      (candidate) => candidate.course.id === selectedCourseId,
+    ) ??
+    workspaceSnapshot.courseModels[0] ??
+    pilotCourseModel;
+  const setCourse: Dispatch<SetStateAction<CourseModel>> = (update) => {
+    setWorkspaceSnapshot((currentSnapshot) => {
+      const index = currentSnapshot.courseModels.findIndex(
+        (candidate) => candidate.course.id === selectedCourseId,
+      );
+      if (index < 0) return currentSnapshot;
+      const currentCourse = structuredClone(
+        currentSnapshot.courseModels[index],
+      );
+      const nextCourse =
+        typeof update === "function" ? update(currentCourse) : update;
+      const nextSnapshot = structuredClone(currentSnapshot);
+      nextSnapshot.courseModels[index] = structuredClone(nextCourse);
+      assertValidWorkspaceSnapshot(nextSnapshot);
+      return nextSnapshot;
+    });
+  };
+
+  const teacherProjection = projectWorkspace(
+    workspaceSnapshot.workspace,
+    teacherActor,
+  );
+  const studentProjection = projectWorkspace(
+    workspaceSnapshot.workspace,
+    studentActor,
+  );
+  const teacherCourseSummaries = Object.fromEntries(
+    teacherProjection.courses.map((course) => {
+      const model = workspaceSnapshot.courseModels.find(
+        (candidate) => candidate.course.id === course.id,
+      );
+      return [
+        course.id,
+        {
+          moduleCount: model?.modules.length ?? 0,
+          availableItemCount:
+            model?.items.filter((item) => item.state === "published").length ??
+            0,
+          inPreparationCount:
+            model?.items.filter((item) =>
+              ["draft", "scheduled", "hidden"].includes(item.state),
+            ).length ?? 0,
+        } satisfies WorkspaceCourseSummary,
+      ];
+    }),
+  );
+  const studentCourseSummaries = Object.fromEntries(
+    studentProjection.courses.map((course) => {
+      const model = workspaceSnapshot.courseModels.find(
+        (candidate) => candidate.course.id === course.id,
+      );
+      const safeProjection = model
+        ? projectCourse(model, "student", {
+            now: DEMO_NOW,
+            completedItemIds: new Set(
+              state.submitted
+                ? ["welcome", "supply-shock-activity"]
+                : ["welcome"],
+            ),
+          })
+        : null;
+      return [
+        course.id,
+        {
+          moduleCount: safeProjection?.modules.length ?? 0,
+          availableItemCount:
+            safeProjection?.modules.reduce(
+              (total, module) => total + module.items.length,
+              0,
+            ) ?? 0,
+          inPreparationCount: null,
+        } satisfies WorkspaceCourseSummary,
+      ];
+    }),
+  );
+
+  const openTeacherCourse = (courseId: string) => {
+    setSelectedCourseId(courseId);
+    setScreen("teacher-composer");
+  };
+  const openStudentCourse = (courseId: string) => {
+    setSelectedCourseId(courseId);
+    setScreen("student-course");
+  };
+  const createWorkspaceCourse = (draft: CreateCourseDraft): string | null => {
+    const title = draft.title.trim();
+    const subject = draft.subject.trim();
+    const code = draft.code.trim().toUpperCase();
+    const term = draft.term.trim();
+    const section = draft.section.trim();
+    if (!title || !subject || !code || !term || !section) {
+      return "Complete the title, subject, course code, class, and term.";
+    }
+    const baseId =
+      code
+        .toLocaleLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "") || "course";
+    let id = baseId;
+    let suffix = 2;
+    while (
+      workspaceSnapshot.workspace.courses.some((course) => course.id === id)
+    ) {
+      id = `${baseId}-${suffix}`;
+      suffix += 1;
+    }
+    const createdAt = new Date(
+      Math.max(
+        Date.now(),
+        Date.parse(workspaceSnapshot.workspace.audit.updatedAt),
+      ),
+    ).toISOString();
+    const course = createCourse({
+      id,
+      title,
+      subject,
+      actorId: teacherActor.principalId,
+      now: createdAt,
+    });
+    const firstModule = createModule({
+      id: `${id}-module-1`,
+      courseId: id,
+      title: "Start here",
+      position: 0,
+      state: "draft",
+      actorId: teacherActor.principalId,
+      now: createdAt,
+    });
+    try {
+      const next = createCourseInWorkspace(
+        workspaceSnapshot,
+        teacherActor,
+        { course, modules: [firstModule], items: [] },
+        {
+          code,
+          term,
+          section,
+          visibility: "private",
+          creatorMembershipId: `membership-${id}-${teacherActor.principalId}`,
+          now: createdAt,
+        },
+      );
+      setWorkspaceSnapshot(next);
+      setSelectedCourseId(id);
+      setScreen("teacher-composer");
+      return null;
+    } catch (error) {
+      return error instanceof Error ? error.message : "Course creation failed.";
+    }
+  };
+
   return (
     <>
       <PreviewHeader screen={screen} setScreen={setScreen} />
+      {screen === "teacher-dashboard" && (
+        <WorkspaceDashboard
+          role="teacher"
+          projection={teacherProjection}
+          courseSummaries={teacherCourseSummaries}
+          activityState={state}
+          onOpenCourse={openTeacherCourse}
+          onCreateCourse={createWorkspaceCourse}
+        />
+      )}
+      {screen === "student-dashboard" && (
+        <WorkspaceDashboard
+          role="student"
+          projection={studentProjection}
+          courseSummaries={studentCourseSummaries}
+          activityState={state}
+          onOpenCourse={openStudentCourse}
+          onCreateCourse={() => "Students cannot create courses."}
+        />
+      )}
       {screen === "student-course" && (
         <StudentCourseHome
-          course={course}
+          course={selectedCourse}
           state={state}
           onOpenActivity={() => setScreen("student-activity")}
         />
@@ -2161,7 +2569,7 @@ export function App() {
       )}
       {screen === "teacher-composer" && (
         <TeacherComposer
-          course={course}
+          course={selectedCourse}
           setCourse={setCourse}
           setScreen={setScreen}
           itemDrafts={composerDrafts}
@@ -2181,8 +2589,17 @@ export function App() {
           type="button"
           onClick={() => {
             dispatch({ type: "reset" });
-            setCourse(structuredClone(pilotCourseModel));
+            window.localStorage.removeItem(WORKSPACE_STORAGE_KEY);
+            window.localStorage.removeItem(COURSE_STORAGE_KEY);
+            setWorkspaceSnapshot(structuredClone(pilotWorkspaceSnapshot));
+            setSelectedCourseId(pilotCourseModel.course.id);
             setComposerDrafts({});
+            window.history.replaceState(
+              { learningLoopScreen: "teacher-dashboard" },
+              "",
+              "#teacher-dashboard",
+            );
+            setScreenState("teacher-dashboard");
           }}
         >
           Reset local demo
