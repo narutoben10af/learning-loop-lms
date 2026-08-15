@@ -189,6 +189,19 @@ Milestone 1 uses a `MediaStorageAdapter` contract with a local demo implementati
 - AI remains optional, premium-entitled, backend-only, least-privilege, source-citing, draft-only, and human-reviewed. MCP remains an adapter over the same authorised domain services.
 - All content is original or appropriately authorised. Do not ingest copyrighted Canvas course content, past papers, or Canvas AGPL source.
 
+## Integration posture
+
+Integrations are a major platform requirement, but they follow the validated
+course, membership, content, evidence, and permission services rather than
+shaping those domains around one vendor. LTI/external tools, media/YouTube,
+file storage, calendar/video/communication, SSO/identity, grade
+passback/import/export, notifications, analytics, AI, and MCP each use a typed,
+replaceable, permissioned, audited adapter. The teacher can understand the
+scope, data, provider status, material effect, and revocation path before using
+one. See [Integration Boundaries](INTEGRATION_BOUNDARIES.md) for the contract
+map. No live adapter, credential, provider account, paid service, or student-data
+exchange is part of the local course-workspace milestone.
+
 ## Quality and release contract
 
 Each focused PR must include proportionate domain/UI tests, migration and malformed-state fixtures, role-projection tests, documentation updates, privacy/security impact, and named responsive evidence. UI PRs require independent review plus Chrome checks at desktop, 375px, 320px, keyboard-only, and 200% zoom. Required CI—format, lint, typecheck, unit tests, and build—must pass before squash merge through protected `main`.
