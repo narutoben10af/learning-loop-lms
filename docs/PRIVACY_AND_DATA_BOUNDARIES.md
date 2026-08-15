@@ -4,6 +4,8 @@
 
 The current repository uses original synthetic Economics content, fictional learner names, and local browser storage. It must not receive real student records. Browser storage is for demo continuity, not a secure database or evidence record.
 
+Browser-selected image/file bytes remain on the device in the immediate course-shell milestone. The demo may retain allowlisted metadata and show an ephemeral same-session preview, but it must not claim that a file is uploaded, shared, backed up, or available to another device. Local paths, handles, object URLs, raw bytes, and unknown metadata never enter student projections or persistent local JSON.
+
 ## Pilot minimum
 
 - No student email address or phone number is required.
@@ -17,6 +19,10 @@ The current repository uses original synthetic Economics content, fictional lear
 Collect only evidence needed for learning and teacher action: activity responses, structured attempts, explanations, feedback, rubric decisions, and disclosed resource-progress events. Set a short pilot retention period before collecting production evidence and support correction/deletion according to school policy.
 
 Future article/video telemetry may record resource opened, active foreground reading time, progress milestones, activity attempts/submission, and disclosed YouTube player events. It must not capture raw browsing outside the LMS, hidden attention signals, GPS, biometrics, camera/microphone monitoring, or cross-site tracking. Engagement evidence is not proof of attention or comprehension.
+
+## Future durable course media
+
+Persistent school media requires a separately authorised backend and object-storage provider. Provider selection, account terms, region, cost, retention, backups, and incident ownership are explicit decisions. The backend must enforce tenant/course/object permissions, safe object keys, signed access, type/size allowlists, malware scanning, quotas, deletion/revocation, and audit. Provider secrets never appear in browser/mobile code, local storage, logs, screenshots, Git, or MCP resources.
 
 ## AI and agents
 

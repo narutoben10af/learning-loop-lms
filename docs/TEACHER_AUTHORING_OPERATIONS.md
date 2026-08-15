@@ -1,6 +1,6 @@
 # Teacher Authoring and Operations Track
 
-Status: product/architecture requirement for later focused PRs; not part of the first coded Economics slice.
+Status: active course-workspace product track. The first Module Composer slice is shipped; the course dashboard, course shell, roster, announcements, and media foundation now precede deeper assessment/gradebook delivery.
 
 ## Outcome
 
@@ -14,7 +14,7 @@ These findings are requirements evidence, not a screen to clone. Learning Loop's
 
 ### Capability map, not a clone list
 
-The observed course shell surfaced home, announcements, modules, assignments, quizzes, discussions, grades, people, pages, syllabus, files, rubrics, outcomes, settings, student view, and progress. Learning Loop should cover the underlying teacher jobs over time, but may combine or simplify navigation around the learning loop instead of creating one destination per Canvas tool.
+The observed course shell surfaced home, announcements, modules, assignments, quizzes, discussions, grades, people, pages, syllabus, files, rubrics, outcomes, settings, student view, and progress. Learning Loop will now expose a recognisable, original course shell covering those underlying jobs. Destinations may share services and progressively disclose complexity, but visible navigation cannot be dead or pretend to be complete. The canonical state of each destination is recorded in [the master product plan](MASTER_PRODUCT_PLAN.md).
 
 - **Core first-party path:** course home, module composer, assessment/question bank, submissions/human marking, gradebook, roster, simple attendance, communication, resources, rubrics/outcomes, and student preview/progress.
 - **Later integration boundary:** external video/collaboration apps, specialised analytics, badges, accessibility extensions, and other plugins. These are not mandatory first-party clones.
@@ -69,6 +69,9 @@ Learning Loop should preserve the useful jobs while preventing a common failure 
 - Assessment identity, content version, assessment taxonomy, grading group, and gradebook projection remain separate fields/records.
 - Published versions and in-progress drafts are distinguishable; edits do not silently mutate evidence attached to an earlier version.
 - Backend permissions ultimately enforce teacher assignments, course scope, material actions, and data minimisation.
+- Workspace → course → membership relationships use stable IDs and role-bound projections so a future dashboard never infers access from raw course records.
+- Announcements are versioned communication records with audience, lifecycle, schedule, author, and audit state; they are not untyped page blocks.
+- Media metadata and binary storage are separate. Local demo files cannot masquerade as durable published resources; a future storage adapter owns authorised upload, scanning, signed access, retention, and revocation.
 
 ## Later acceptance criteria
 

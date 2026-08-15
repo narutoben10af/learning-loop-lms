@@ -5,7 +5,7 @@
 
 [Open the public synthetic-data prototype](https://narutoben10af.github.io/learning-loop-lms/).
 
-Learning Loop is an experimental, learning-first LMS pilot for one Economics class. Its first vertical slice connects a student's prediction, constrained graph interaction, explanation, and reflection to a teacher's view of the same evidence and a human marking loop.
+Learning Loop is an experimental, learning-first LMS growing from one validated Economics learning loop into a practical course workspace. The current public build connects a student's prediction, constrained graph interaction, explanation, and reflection to a teacher's authoring and marking view; the active reset now adds the course dashboard, role-aware course shell, roster, announcements, and media foundation expected of a recognisable LMS.
 
 > **Prototype warning:** this repository is not production ready. It currently uses synthetic demo data and local browser storage. It does not provide production authentication, tenant isolation, secure enrolment, server persistence, or a student-data processing agreement.
 
@@ -17,6 +17,8 @@ Learning Loop is an experimental, learning-first LMS pilot for one Economics cla
 - Separate student activity and teacher evidence/marking experiences. A clearly labelled preview switch exists only for author/demo QA.
 - A teacher-only Module Composer with contextual editing for pages, learning blocks, resources, videos, and honest draft-only assessment handoffs.
 - Minimal private mastery evidence tied to demonstrated outcomes, not time, streaks, or public ranking.
+
+The current deployment remains a narrow vertical slice, not a complete LMS. The next milestone changes the first screen to **My workspace**, adds local multi-course creation/selection, and delivers a real course shell with functional Home, People, Announcements, Files, and Modules. See the [canonical master product plan](docs/MASTER_PRODUCT_PLAN.md) for the honest gap assessment, information architecture, and phase boundaries.
 
 Not included: payments, live AI or model-provider calls, a live MCP server, native Flutter apps, Canvas integration, parent access, attendance, public registration, remote proctoring, Python execution, or copied exam content.
 
@@ -44,7 +46,7 @@ later: web / Flutter
      -> optional premium AI-job service (draft-only provider adapters)
 ```
 
-See [architecture decisions](docs/ARCHITECTURE_DECISIONS.md), the [approved UX contract](docs/ECONOMICS_VERTICAL_SLICE_UX_BRIEF.md), the [teacher authoring/operations track](docs/TEACHER_AUTHORING_OPERATIONS.md), the [current Module Composer authoring slice](docs/AUTHORING.md), and the [PR delivery register](docs/PR_PLAN.md).
+See the [master product plan](docs/MASTER_PRODUCT_PLAN.md), [architecture decisions](docs/ARCHITECTURE_DECISIONS.md), the [approved Economics UX contract](docs/ECONOMICS_VERTICAL_SLICE_UX_BRIEF.md), the [teacher authoring/operations track](docs/TEACHER_AUTHORING_OPERATIONS.md), the [current Module Composer authoring slice](docs/AUTHORING.md), and the [PR delivery register](docs/PR_PLAN.md).
 
 ## Local setup
 
@@ -73,7 +75,7 @@ Do not enter real student information into the prototype. The pilot requires no 
 
 ## Roadmap
 
-Delivery is deliberately split into small PRs: repository foundation; demo shell and learning loop; reusable Economics graph renderer; question-bank core; submission and human marking; then backend roles, enrolment, teacher authoring/operations, and later integrations. AI/MCP contracts follow validated permissions and domain APIs. The later Teach-back Lab remains discovery work until the core learning loop is validated.
+Delivery is deliberately split into small PRs. The active milestone is now the real LMS shell: workspace/course domain, course dashboard and creation, course overview/navigation, People, Announcements, Files/media, and integration of the existing Modules/Economics work. Assessment/question-bank, submissions/marking, gradebook, roster/attendance, and communications follow. Production auth/storage, plugins, analytics, mobile, parents, MCP, and premium AI remain later phases after permissions and domain APIs are validated.
 
 ## Contributing and licence
 
