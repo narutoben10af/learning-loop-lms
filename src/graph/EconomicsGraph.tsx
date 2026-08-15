@@ -61,7 +61,7 @@ function ValidatedEconomicsGraph({
     const element = containerRef.current;
     if (!element) return;
     const update = () => {
-      const measured = element.getBoundingClientRect().width;
+      const measured = element.clientWidth;
       if (measured > 0) setWidth(measured);
     };
     update();

@@ -431,7 +431,7 @@ function buildGraphLayoutAtHeight(
   height: number,
   measureText: TextMeasure = approximateTextMeasure,
 ): GraphLayout {
-  const safeWidth = Math.max(280, width);
+  const safeWidth = Math.max(240, width);
   const safeHeight = Math.max(360, height);
   const compact = safeWidth < 520;
   const xTickCount = Math.min(

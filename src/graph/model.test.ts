@@ -136,6 +136,7 @@ describe("data-driven Economics graph model", () => {
   });
 
   it.each([
+    [254, 430],
     [320, 430],
     [768, 500],
     [1100, 500],
@@ -156,7 +157,7 @@ describe("data-driven Economics graph model", () => {
     expect(layout.curves.every((curve) => curve.path.startsWith("M"))).toBe(
       true,
     );
-    if (width === 320) {
+    if (width <= 320) {
       expect(layout.axisTitles.x.lines.length).toBeGreaterThan(1);
       expect(layout.axisTitles.y.lines.length).toBeGreaterThan(1);
     }
