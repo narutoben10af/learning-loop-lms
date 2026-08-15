@@ -324,7 +324,7 @@ describe("learning-loop prototype", () => {
     fireEvent.keyDown(supplyCurve, { key: "ArrowRight" });
 
     expect(supplyCurve).toHaveAttribute("aria-valuenow", "1");
-    expect(screen.getByText("$4 · 80 rentals")).toBeInTheDocument();
+    expect(screen.getAllByText("$4 · 80 rentals")).toHaveLength(2);
     expect(
       screen.getByRole("button", { name: "Right →", pressed: true }),
     ).toBeInTheDocument();
