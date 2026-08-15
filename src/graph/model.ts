@@ -76,6 +76,12 @@ export interface Rect {
   height: number;
 }
 
+export type EquilibriumLayout = Point & {
+  xValue: number;
+  yValue: number;
+  label: string;
+};
+
 export interface GraphLayout {
   width: number;
   height: number;
@@ -86,6 +92,7 @@ export interface GraphLayout {
     spec: CurveSpec;
     points: Point[];
     path: string;
+    baselinePath: string | null;
     label: {
       x: number;
       y: number;
@@ -95,9 +102,8 @@ export interface GraphLayout {
     };
     handle: Point;
   }>;
-  equilibrium:
-    | (Point & { xValue: number; yValue: number; label: string })
-    | null;
+  equilibrium: EquilibriumLayout | null;
+  baselineEquilibrium: EquilibriumLayout | null;
   annotations: Array<{
     spec: AnnotationSpec;
     anchor: Point;
@@ -605,15 +611,19 @@ function buildGraphLayoutAtHeight(
   };
   const equilibriumBanner: Rect = {
     x: plot.x,
-    y: 12,
+    y: 6,
     width: Math.min(250, plot.width),
-    height: 46,
+    height: 58,
   };
+  const hasShift = scenario.curves.some(
+    (curve) => (state.shifts[curve.id] ?? 0) !== 0,
+  );
   const rawCurves = scenario.curves.map((spec, curveIndex) => {
+    const shift = state.shifts[spec.id] ?? 0;
     const sampled = sampleCurve(
       spec,
       scenario.xAxis.domain,
-      state.shifts[spec.id] ?? 0,
+      shift,
       compact ? 56 : 88,
     )
       .filter(
@@ -622,6 +632,16 @@ function buildGraphLayoutAtHeight(
           point.y <= scenario.yAxis.domain[1],
       )
       .map((point) => ({ x: xScale(point.x), y: yScale(point.y) }));
+    const baselinePoints =
+      shift === 0
+        ? []
+        : sampleCurve(spec, scenario.xAxis.domain, 0, compact ? 56 : 88)
+            .filter(
+              (point) =>
+                point.y >= scenario.yAxis.domain[0] &&
+                point.y <= scenario.yAxis.domain[1],
+            )
+            .map((point) => ({ x: xScale(point.x), y: yScale(point.y) }));
     const anchor = sampled[
       Math.min(
         sampled.length - 1,
@@ -632,12 +652,16 @@ function buildGraphLayoutAtHeight(
       spec,
       points: sampled,
       path: pointsToPath(sampled),
+      baselinePath:
+        baselinePoints.length > 0 ? pointsToPath(baselinePoints) : null,
       preferredHandle: anchor,
     };
   });
 
-  let equilibrium: GraphLayout["equilibrium"] = null;
-  if (scenario.equilibrium) {
+  const layoutEquilibrium = (
+    shifts: Record<string, Shift>,
+  ): EquilibriumLayout | null => {
+    if (!scenario.equilibrium) return null;
     const [firstId, secondId] = scenario.equilibrium.curveIds;
     const first = scenario.curves.find((curve) => curve.id === firstId);
     const second = scenario.curves.find((curve) => curve.id === secondId);
@@ -646,14 +670,14 @@ function buildGraphLayoutAtHeight(
         first,
         second,
         scenario.xAxis.domain,
-        state.shifts,
+        shifts,
       );
       if (
         intersection &&
         intersection.y >= scenario.yAxis.domain[0] &&
         intersection.y <= scenario.yAxis.domain[1]
       ) {
-        equilibrium = {
+        return {
           x: xScale(intersection.x),
           y: yScale(intersection.y),
           xValue: intersection.x,
@@ -662,17 +686,20 @@ function buildGraphLayoutAtHeight(
         };
       }
     }
-  }
+    return null;
+  };
+  const equilibrium = layoutEquilibrium(state.shifts);
+  const baselineEquilibrium = hasShift ? layoutEquilibrium({}) : null;
 
-  const equilibriumRect = equilibrium
-    ? {
-        x: equilibrium.x - 12,
-        y: equilibrium.y - 12,
-        width: 24,
-        height: 24,
-      }
-    : null;
-  const occupiedHandleRects: Rect[] = equilibriumRect ? [equilibriumRect] : [];
+  const equilibriumRects = [equilibrium, baselineEquilibrium]
+    .filter((point): point is EquilibriumLayout => point !== null)
+    .map((point) => ({
+      x: point.x - 12,
+      y: point.y - 12,
+      width: 24,
+      height: 24,
+    }));
+  const occupiedHandleRects: Rect[] = [...equilibriumRects];
   const positionedCurves = rawCurves.map((curve) => {
     const handle = curve.spec.adjustable
       ? chooseHandleAnchor(curve, plot, occupiedHandleRects)
@@ -712,7 +739,7 @@ function buildGraphLayoutAtHeight(
       ],
       [
         ...handleRects,
-        ...(equilibriumRect ? [equilibriumRect] : []),
+        ...equilibriumRects,
         ...labelRects.map((placed) => placed.rect),
       ],
     );
@@ -762,7 +789,7 @@ function buildGraphLayoutAtHeight(
         ],
         [
           ...handleRects,
-          ...(equilibriumRect ? [equilibriumRect] : []),
+          ...equilibriumRects,
           ...labelRects.map((placed) => placed.rect),
         ],
       );
@@ -824,6 +851,7 @@ function buildGraphLayoutAtHeight(
     yTicks,
     curves,
     equilibrium,
+    baselineEquilibrium,
     annotations,
     axisTitles,
     equilibriumBanner,

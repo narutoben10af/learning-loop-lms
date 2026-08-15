@@ -105,6 +105,36 @@ describe("data-driven Economics graph model", () => {
     },
   );
 
+  it("retains shifted-curve and equilibrium baselines from declarative state", () => {
+    const unchanged = buildGraphLayout(
+      ebikeMarketScenario,
+      { shifts: { demand: 0, supply: 0 } },
+      375,
+      430,
+    );
+    expect(unchanged.baselineEquilibrium).toBeNull();
+    expect(unchanged.curves.every((curve) => curve.baselinePath === null)).toBe(
+      true,
+    );
+
+    const shifted = buildGraphLayout(
+      ebikeMarketScenario,
+      { shifts: { demand: 0, supply: 1 } },
+      375,
+      430,
+    );
+    expect(
+      shifted.curves.find((curve) => curve.spec.id === "demand")?.baselinePath,
+    ).toBeNull();
+    expect(
+      shifted.curves.find((curve) => curve.spec.id === "supply")?.baselinePath,
+    ).toMatch(/^M/);
+    expect(shifted.baselineEquilibrium?.xValue).toBeCloseTo(60, 4);
+    expect(shifted.baselineEquilibrium?.yValue).toBeCloseTo(6, 4);
+    expect(shifted.equilibrium?.xValue).toBeCloseTo(80, 4);
+    expect(shifted.equilibrium?.yValue).toBeCloseTo(4, 4);
+  });
+
   it.each([
     [320, 430],
     [768, 500],
@@ -327,6 +357,17 @@ describe("data-driven Economics graph model", () => {
               };
               for (const rect of handles) {
                 expect(rectsOverlap(rect, equilibriumRect, 4)).toBe(false);
+              }
+            }
+            if (layout.baselineEquilibrium) {
+              const baselineRect = {
+                x: layout.baselineEquilibrium.x - 12,
+                y: layout.baselineEquilibrium.y - 12,
+                width: 24,
+                height: 24,
+              };
+              for (const rect of handles) {
+                expect(rectsOverlap(rect, baselineRect, 4)).toBe(false);
               }
             }
           }
