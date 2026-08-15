@@ -452,12 +452,25 @@ export function addWorkspaceMembership(
   const actorRoles = activeMemberships(snapshot.workspace, actor).filter(
     (candidate) => candidate.courseId === null,
   );
-  if (
-    !actorRoles.some((candidate) =>
-      ["platform-owner", "organization-administrator"].includes(candidate.role),
+  const authority = actorRoles
+    .map((candidate) => candidate.role)
+    .filter((role) =>
+      ["platform-owner", "organization-administrator"].includes(role),
     )
-  ) {
+    .sort((a, b) => rolePriority[b] - rolePriority[a])[0];
+  if (!authority) {
     throw new Error("Actor is not authorised to manage memberships");
+  }
+  if (
+    authority !== "platform-owner" &&
+    ["platform-owner", "organization-administrator"].includes(membership.role)
+  ) {
+    throw new Error("Only a platform owner can grant an administrator role");
+  }
+  if (
+    !(["active", "invited"] as MembershipStatus[]).includes(membership.status)
+  ) {
+    throw new Error("A new membership must begin as active or invited");
   }
   const next = clone(snapshot);
   const nextMembership = clone(membership);
@@ -481,6 +494,9 @@ export function projectWorkspace(
 ): WorkspaceProjection {
   assertValidWorkspaceModel(model);
   const memberships = activeMemberships(model, actor);
+  if (!memberships.length) {
+    throw new Error("Actor is not authorised for this workspace");
+  }
   const organizationMemberships = memberships.filter(
     (membership) => membership.courseId === null,
   );

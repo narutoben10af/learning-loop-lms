@@ -189,6 +189,20 @@ describe("workspace and course catalogue domain", () => {
     });
     assertValidWorkspaceSnapshot(snapshot);
 
+    expect(() =>
+      addWorkspaceMembership(
+        snapshot,
+        { principalId: "admin-1", organizationId },
+        membership(
+          "membership-escalation",
+          "other-admin",
+          "platform-owner",
+          null,
+        ),
+        later,
+      ),
+    ).toThrow(/only a platform owner/i);
+
     for (const [id, principal, role] of [
       ["membership-student", "student-1", "student"],
       ["membership-assistant", "assistant-1", "teaching-assistant"],
@@ -253,12 +267,12 @@ describe("workspace and course catalogue domain", () => {
         organizationId,
       }).capabilities,
     ).toEqual({ canCreateCourse: true, canViewOrganizationSignals: true });
-    expect(
+    expect(() =>
       projectWorkspace(snapshot.workspace, {
         principalId: "student-1",
         organizationId: "different-organization",
-      }).courses,
-    ).toEqual([]);
+      }),
+    ).toThrow(/not authorised/i);
   });
 
   it("does not let an organization-scoped teacher infer access to unassigned courses", () => {
@@ -300,7 +314,7 @@ describe("workspace and course catalogue domain", () => {
         { principalId: "student-1", organizationId },
         "econ-10a",
       ),
-    ).toThrow(/not available/i);
+    ).toThrow(/not authorised|not available/i);
 
     snapshot = transitionWorkspaceCourse(
       snapshot,
