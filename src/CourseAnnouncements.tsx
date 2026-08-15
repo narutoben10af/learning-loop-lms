@@ -60,9 +60,10 @@ export function CourseAnnouncements({
   const [stateFilter, setStateFilter] = useState("current");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<AnnouncementDraft>(emptyDraft);
-  const [scheduleFor, setScheduleFor] = useState("");
+  const [scheduleById, setScheduleById] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
+  const [restoreFocusId, setRestoreFocusId] = useState<string | null>(null);
   const newTriggerRef = useRef<HTMLButtonElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const editTriggerRefs = useRef(new Map<string, HTMLButtonElement>());
@@ -72,6 +73,16 @@ export function CourseAnnouncements({
   useEffect(() => {
     if (editorOpen) titleRef.current?.focus();
   }, [editorOpen, editingId]);
+
+  useEffect(() => {
+    if (!restoreFocusId || editorOpen) return;
+    if (restoreFocusId === "new") {
+      newTriggerRef.current?.focus();
+    } else {
+      editTriggerRefs.current.get(restoreFocusId)?.focus();
+    }
+    setRestoreFocusId(null);
+  }, [editorOpen, projection.announcements, restoreFocusId]);
 
   const visible = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
@@ -94,11 +105,7 @@ export function CourseAnnouncements({
     setDraft(emptyDraft);
     setError("");
     if (restoreFocus) {
-      if (priorId && priorId !== "new") {
-        editTriggerRefs.current.get(priorId)?.focus();
-      } else {
-        newTriggerRef.current?.focus();
-      }
+      setRestoreFocusId(priorId && priorId !== "new" ? priorId : "new");
     }
   };
 
@@ -144,7 +151,7 @@ export function CourseAnnouncements({
     const nextError = onRelease(
       item.id,
       state,
-      state === "scheduled" ? scheduleFor : undefined,
+      state === "scheduled" ? scheduleById[item.id] : undefined,
     );
     if (nextError) {
       setError(nextError);
@@ -156,7 +163,12 @@ export function CourseAnnouncements({
         : `${item.title} is scheduled for release.`,
     );
     setError("");
-    setScheduleFor("");
+    setScheduleById((current) => {
+      const next = { ...current };
+      delete next[item.id];
+      return next;
+    });
+    setRestoreFocusId(item.id);
   };
 
   if (role === "student") {
@@ -402,16 +414,22 @@ export function CourseAnnouncements({
                       </button>
                     )}
                     {item.state === "draft" && (
-                      <label className="announcement-schedule">
-                        <span>Schedule release</span>
-                        <span>
+                      <div className="announcement-schedule">
+                        <label htmlFor={`schedule-${item.id}`}>
+                          Schedule release
+                        </label>
+                        <div>
                           <input
+                            id={`schedule-${item.id}`}
                             type="datetime-local"
-                            value={scheduleFor}
-                            onChange={(event) =>
-                              setScheduleFor(event.target.value)
-                            }
-                            aria-label={`Schedule ${item.title}`}
+                            value={scheduleById[item.id] ?? ""}
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              setScheduleById((current) => ({
+                                ...current,
+                                [item.id]: value,
+                              }));
+                            }}
                           />
                           <button
                             className="button quiet"
@@ -421,8 +439,8 @@ export function CourseAnnouncements({
                           >
                             Schedule
                           </button>
-                        </span>
-                      </label>
+                        </div>
+                      </div>
                     )}
                     <button
                       className="button quiet danger-text"
@@ -433,6 +451,7 @@ export function CourseAnnouncements({
                         else {
                           setError("");
                           setStatus(`${item.title} was archived.`);
+                          setRestoreFocusId("new");
                         }
                       }}
                     >

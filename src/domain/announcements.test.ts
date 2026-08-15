@@ -15,6 +15,7 @@ import {
   createCourseInWorkspace,
   createWorkspace,
   createWorkspaceSnapshot,
+  transitionWorkspaceCourse,
   type WorkspaceActor,
   type WorkspaceMembership,
   type WorkspaceSnapshot,
@@ -32,6 +33,14 @@ const teacher: WorkspaceActor = {
 };
 const student: WorkspaceActor = {
   principalId: "student-1",
+  organizationId,
+};
+const guardian: WorkspaceActor = {
+  principalId: "guardian-1",
+  organizationId,
+};
+const administrator: WorkspaceActor = {
+  principalId: "administrator-1",
   organizationId,
 };
 
@@ -90,9 +99,17 @@ function buildWorkspace(): WorkspaceSnapshot {
       code: "ECON-10A",
       term: "Term 1",
       section: "10A",
+      visibility: "enrolled-members",
       creatorMembershipId: "membership-teacher-course",
       now,
     },
+  );
+  snapshot = transitionWorkspaceCourse(
+    snapshot,
+    teacher,
+    "econ-10a",
+    "active",
+    now,
   );
   return addWorkspaceMembership(
     snapshot,
@@ -105,6 +122,25 @@ function buildWorkspace(): WorkspaceSnapshot {
     ),
     now,
   );
+}
+
+function withCourseState(
+  snapshot: WorkspaceSnapshot,
+  lifecycle: "draft" | "active" | "archived",
+  visibility: "private" | "enrolled-members",
+): WorkspaceSnapshot {
+  const next = structuredClone(snapshot);
+  const catalogueCourse = next.workspace.courses.find(
+    (course) => course.id === "econ-10a",
+  );
+  const model = next.courseModels.find(
+    (candidate) => candidate.course.id === "econ-10a",
+  );
+  if (!catalogueCourse || !model) throw new Error("Fixture course missing");
+  catalogueCourse.lifecycle = lifecycle;
+  catalogueCourse.visibility = visibility;
+  model.course.status = lifecycle;
+  return next;
 }
 
 describe("course announcements domain", () => {
@@ -282,6 +318,139 @@ describe("course announcements domain", () => {
         now,
       }),
     ).toThrow(/not authorised/);
+  });
+
+  it("fails closed for a learner when the course is draft, private, or archived", () => {
+    const published = createAnnouncementRecord({
+      id: "notice-1",
+      organizationId,
+      courseId: "econ-10a",
+      title: "Private until the course opens",
+      body: "This must not cross a closed course boundary.",
+      audience: "all-course-members",
+      state: "published",
+      releaseAt: now,
+      actorId: teacher.principalId,
+      now,
+    });
+    const announcements = createAnnouncementSnapshot(
+      organizationId,
+      owner.principalId,
+      now,
+      [published],
+    );
+    const active = buildWorkspace();
+    for (const workspace of [
+      withCourseState(active, "draft", "enrolled-members"),
+      withCourseState(active, "active", "private"),
+      withCourseState(active, "archived", "enrolled-members"),
+    ]) {
+      expect(() =>
+        projectCourseAnnouncements(
+          announcements,
+          workspace,
+          student,
+          "econ-10a",
+          now,
+        ),
+      ).toThrow(/not authorised/);
+    }
+  });
+
+  it("applies exact audience rules for students, guardians, and staff", () => {
+    let workspace = addWorkspaceMembership(
+      buildWorkspace(),
+      owner,
+      membership(
+        "membership-guardian-course",
+        guardian.principalId,
+        "parent-guardian",
+        "econ-10a",
+      ),
+      now,
+    );
+    const assistant: WorkspaceActor = {
+      principalId: "assistant-1",
+      organizationId,
+    };
+    workspace = addWorkspaceMembership(
+      workspace,
+      teacher,
+      membership(
+        "membership-assistant-course",
+        assistant.principalId,
+        "teaching-assistant",
+        "econ-10a",
+      ),
+      now,
+    );
+    workspace = addWorkspaceMembership(
+      workspace,
+      owner,
+      membership(
+        "membership-administrator-org",
+        administrator.principalId,
+        "organization-administrator",
+        null,
+      ),
+      now,
+    );
+    const announcements = createAnnouncementSnapshot(
+      organizationId,
+      owner.principalId,
+      now,
+      [
+        ["all", "all-course-members"],
+        ["students", "students-only"],
+        ["staff", "staff-only"],
+      ].map(([id, audience]) =>
+        createAnnouncementRecord({
+          id,
+          organizationId,
+          courseId: "econ-10a",
+          title: id,
+          body: `${id} message`,
+          audience: audience as
+            | "all-course-members"
+            | "students-only"
+            | "staff-only",
+          state: "published",
+          releaseAt: now,
+          actorId: teacher.principalId,
+          now,
+        }),
+      ),
+    );
+
+    expect(
+      projectCourseAnnouncements(
+        announcements,
+        workspace,
+        student,
+        "econ-10a",
+        now,
+      ).announcements.map((item) => item.id),
+    ).toEqual(["all", "students"]);
+    expect(
+      projectCourseAnnouncements(
+        announcements,
+        workspace,
+        guardian,
+        "econ-10a",
+        now,
+      ).announcements.map((item) => item.id),
+    ).toEqual(["all"]);
+    for (const actor of [assistant, teacher, administrator, owner]) {
+      expect(
+        projectCourseAnnouncements(
+          announcements,
+          workspace,
+          actor,
+          "econ-10a",
+          now,
+        ).announcements.map((item) => item.id),
+      ).toEqual(["all", "staff", "students"]);
+    }
   });
 
   it("falls back from unknown persisted fields", () => {

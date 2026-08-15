@@ -277,11 +277,80 @@ describe("learning-loop prototype", () => {
         name: "Publish now",
       }),
     );
+    const publishedCard = screen
+      .getByText("Bring your calculation notes")
+      .closest("article");
+    expect(
+      within(publishedCard as HTMLElement).getByRole("button", {
+        name: "Edit",
+      }),
+    ).toHaveFocus();
 
     fireEvent.click(screen.getByRole("button", { name: "Student courses" }));
     fireEvent.click(screen.getByRole("button", { name: "Open course" }));
     fireEvent.click(screen.getByRole("button", { name: "Announcements" }));
     expect(screen.getByText("Bring your calculation notes")).toBeVisible();
+  });
+
+  it("keeps schedule inputs independent and restores mutation focus", () => {
+    render(createElement(App));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open course workspace" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Announcements" }));
+
+    const addDraft = (title: string) => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "+ New announcement" }),
+      );
+      fireEvent.change(screen.getByLabelText("Title"), {
+        target: { value: title },
+      });
+      fireEvent.change(screen.getByLabelText("Message"), {
+        target: { value: `${title} message` },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    };
+    addDraft("First draft");
+    addDraft("Second draft");
+
+    const firstCard = screen.getByText("First draft").closest("article");
+    const secondCard = screen.getByText("Second draft").closest("article");
+    const firstSchedule = within(firstCard as HTMLElement).getByLabelText(
+      "Schedule release",
+    );
+    const secondSchedule = within(secondCard as HTMLElement).getByLabelText(
+      "Schedule release",
+    );
+    fireEvent.change(firstSchedule, {
+      target: { value: "2099-08-16T09:00" },
+    });
+    expect(secondSchedule).toHaveValue("");
+    fireEvent.click(
+      within(firstCard as HTMLElement).getByRole("button", {
+        name: "Schedule",
+      }),
+    );
+    const scheduledCard = screen.getByText("First draft").closest("article");
+    expect(
+      within(scheduledCard as HTMLElement).getByRole("button", {
+        name: "Edit",
+      }),
+    ).toHaveFocus();
+
+    fireEvent.click(
+      within(secondCard as HTMLElement).getByRole("button", {
+        name: "Archive",
+      }),
+    );
+    expect(
+      screen.getByRole("button", { name: "+ New announcement" }),
+    ).toHaveFocus();
+    fireEvent.click(screen.getByRole("button", { name: "+ New announcement" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(
+      screen.getByRole("button", { name: "+ New announcement" }),
+    ).toHaveFocus();
   });
 
   it("falls back from malformed announcement storage", () => {

@@ -2468,6 +2468,8 @@ footer button {
   border: 1px solid var(--line);
   border-radius: 1.15rem;
   box-shadow: var(--shadow);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .announcement-editor {
   display: grid;
@@ -2571,7 +2573,7 @@ footer button {
 .announcement-schedule {
   flex: 1 1 19rem;
 }
-.announcement-schedule > span:last-child {
+.announcement-schedule > div {
   display: grid;
   gap: 0.5rem;
   grid-template-columns: minmax(11rem, 1fr) auto;
@@ -2695,7 +2697,7 @@ footer button {
     width: 100%;
   }
   .announcement-schedule,
-  .announcement-schedule > span:last-child {
+  .announcement-schedule > div {
     display: grid;
     grid-template-columns: 1fr;
     width: 100%;

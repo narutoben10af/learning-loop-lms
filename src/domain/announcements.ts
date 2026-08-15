@@ -5,7 +5,7 @@ import type {
   WorkspaceRole,
   WorkspaceSnapshot,
 } from "./workspace";
-import { assertValidWorkspaceSnapshot } from "./workspace";
+import { assertValidWorkspaceSnapshot, projectWorkspace } from "./workspace";
 
 export const ANNOUNCEMENTS_SCHEMA_VERSION = 1 as const;
 export const ANNOUNCEMENTS_STORAGE_KEY =
@@ -192,20 +192,6 @@ function rolesForCourse(
             administratorRoles.includes(membership.role))),
     )
     .map((membership) => membership.role);
-}
-
-function highestRole(roles: readonly WorkspaceRole[]): WorkspaceRole {
-  for (const role of [
-    "platform-owner",
-    "organization-administrator",
-    "teacher",
-    "teaching-assistant",
-    "student",
-    "parent-guardian",
-  ] as const) {
-    if (roles.includes(role)) return role;
-  }
-  throw new Error("Actor is not authorised for this course");
 }
 
 function assertCanAuthor(
@@ -419,9 +405,16 @@ export function projectCourseAnnouncements(
   if (snapshot.organizationId !== actor.organizationId) {
     throw new Error("Actor is not authorised for this organization");
   }
+  const authorisedCourse = projectWorkspace(
+    workspace.workspace,
+    actor,
+  ).courses.find((course) => course.id === courseId);
+  if (!authorisedCourse) {
+    throw new Error("Actor is not authorised for this course");
+  }
   const roles = rolesForCourse(workspace, actor, courseId);
   if (!roles.length) throw new Error("Actor is not authorised for this course");
-  const viewerRole = highestRole(roles);
+  const viewerRole = authorisedCourse.role;
   const canViewStaffAudience = roles.some((role) => staffRoles.includes(role));
   const canAuthor = roles.some((role) =>
     ["platform-owner", "organization-administrator", "teacher"].includes(role),
@@ -452,7 +445,9 @@ export function projectCourseAnnouncements(
         if (
           !released ||
           announcement.state === "archived" ||
-          announcement.audience === "staff-only"
+          announcement.audience === "staff-only" ||
+          (announcement.audience === "students-only" &&
+            viewerRole !== "student")
         ) {
           return [];
         }
