@@ -31,6 +31,48 @@ export type ModuleItemType =
   | "quiz"
   | "discussion";
 
+export interface LocalAttachmentMetadata {
+  name: string;
+  sizeBytes: number;
+  mimeType: string;
+  lastModifiedAt: string;
+  storage: "browser-demo";
+}
+
+export interface TextItemContent {
+  kind: "text";
+  body: string;
+}
+
+export interface ResourceItemContent {
+  kind: "resource";
+  description: string;
+  resourceType: "article" | "link" | "file";
+  url: string | null;
+  localAttachment: LocalAttachmentMetadata | null;
+}
+
+export interface VideoItemContent {
+  kind: "video";
+  description: string;
+  url: string;
+  provider: "youtube" | "external";
+}
+
+export interface AssessmentDraftContent {
+  kind: "assessment-draft";
+  instructions: string;
+  dueAt: string | null;
+  points: number | null;
+  builderStatus: "not-started";
+}
+
+export type ModuleItemContent =
+  | TextItemContent
+  | ResourceItemContent
+  | VideoItemContent
+  | AssessmentDraftContent;
+
 export interface AuditFields {
   createdBy: string;
   createdAt: string;
@@ -86,6 +128,8 @@ export interface ModuleItem {
   availability: AvailabilityWindow;
   prerequisiteItemIds: ModuleItemId[];
   completion: ItemCompletionRule;
+  /** Optional learner-facing content; legacy records may omit it until edited. */
+  content?: ModuleItemContent;
   revision: number;
   /** Content revision identity; `revision` is the aggregate record version. */
   revisionId: RevisionId;
@@ -130,6 +174,7 @@ export interface CourseProjection {
       position: number;
       state: ReleaseState;
       completion: ItemCompletionRule;
+      content?: ModuleItemContent;
     }>;
   }>;
   capabilities: {
@@ -173,6 +218,7 @@ export interface CreateModuleItemInput {
   availability?: AvailabilityWindow;
   prerequisiteItemIds?: ModuleItemId[];
   completion?: ItemCompletionRule;
+  content?: ModuleItemContent;
   revisionId?: RevisionId;
 }
 
@@ -206,6 +252,119 @@ const releaseStates: readonly ReleaseState[] = [
 
 function assertNonEmpty(value: string, field: string): void {
   if (!value.trim()) throw new Error(`${field} must not be empty`);
+}
+
+function assertUrl(value: string, field: string): void {
+  assertNonEmpty(value, field);
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      throw new Error();
+    }
+  } catch {
+    throw new Error(`${field} must be an http(s) URL`);
+  }
+}
+
+function assertLocalAttachment(
+  attachment: LocalAttachmentMetadata,
+  field: string,
+): void {
+  assertNonEmpty(attachment.name, `${field}.name`);
+  assertNonEmpty(attachment.mimeType, `${field}.mimeType`);
+  if (
+    !Number.isInteger(attachment.sizeBytes) ||
+    attachment.sizeBytes < 0 ||
+    attachment.sizeBytes > 25_000_000
+  ) {
+    throw new Error(`${field}.sizeBytes must be an integer from 0 to 25000000`);
+  }
+  assertIsoDate(attachment.lastModifiedAt, `${field}.lastModifiedAt`);
+  if (attachment.storage !== "browser-demo") {
+    throw new Error(`${field}.storage is invalid`);
+  }
+}
+
+export function assertModuleItemContent(
+  content: ModuleItemContent,
+  field = "content",
+): void {
+  if (!content || typeof content !== "object") {
+    throw new Error(`${field} is invalid`);
+  }
+  if (content.kind === "text") {
+    assertNonEmpty(content.body, `${field}.body`);
+    return;
+  }
+  if (content.kind === "resource") {
+    assertNonEmpty(content.description, `${field}.description`);
+    if (content.resourceType === "file") {
+      if (content.url !== null) {
+        throw new Error(`${field}.url must be null for file resources`);
+      }
+      if (!content.localAttachment) {
+        throw new Error(
+          `${field}.localAttachment is required for file resources`,
+        );
+      }
+      assertLocalAttachment(
+        content.localAttachment,
+        `${field}.localAttachment`,
+      );
+      return;
+    }
+    if (content.localAttachment !== null) {
+      throw new Error(
+        `${field}.localAttachment is only supported for file resources`,
+      );
+    }
+    if (content.url === null) {
+      throw new Error(`${field}.url is required for linked resources`);
+    }
+    assertUrl(content.url, `${field}.url`);
+    return;
+  }
+  if (content.kind === "video") {
+    assertNonEmpty(content.description, `${field}.description`);
+    assertUrl(content.url, `${field}.url`);
+    if (content.provider !== "youtube" && content.provider !== "external") {
+      throw new Error(`${field}.provider is invalid`);
+    }
+    return;
+  }
+  if (content.kind === "assessment-draft") {
+    assertNonEmpty(content.instructions, `${field}.instructions`);
+    if (content.dueAt !== null) assertIsoDate(content.dueAt, `${field}.dueAt`);
+    if (
+      content.points !== null &&
+      (!Number.isFinite(content.points) || content.points < 0)
+    ) {
+      throw new Error(`${field}.points must be a finite non-negative number`);
+    }
+    if (content.builderStatus !== "not-started") {
+      throw new Error(`${field}.builderStatus is invalid`);
+    }
+    return;
+  }
+  throw new Error(`${field}.kind is invalid`);
+}
+
+function assertContentMatchesType(
+  type: ModuleItemType,
+  content: ModuleItemContent,
+  field: string,
+): void {
+  const expected =
+    type === "resource"
+      ? "resource"
+      : type === "video"
+        ? "video"
+        : type === "assignment" || type === "quiz"
+          ? "assessment-draft"
+          : "text";
+  if (content.kind !== expected) {
+    throw new Error(`${field}.kind must be ${expected} for ${type} items`);
+  }
 }
 
 function assertIsoDate(value: string, field: string): number {
@@ -278,6 +437,60 @@ function cloneAvailability(window: AvailabilityWindow): AvailabilityWindow {
 
 function cloneItemCompletion(rule: ItemCompletionRule): ItemCompletionRule {
   return rule.type === "score" ? { ...rule } : { type: rule.type };
+}
+
+export function cloneModuleItemContent(
+  content: ModuleItemContent | undefined,
+): ModuleItemContent | undefined {
+  if (!content) return undefined;
+  if (content.kind === "text") return { ...content };
+  if (content.kind === "resource") {
+    return {
+      ...content,
+      localAttachment: content.localAttachment
+        ? { ...content.localAttachment }
+        : null,
+    };
+  }
+  return { ...content };
+}
+
+export function defaultModuleItemContent(
+  type: ModuleItemType,
+): ModuleItemContent {
+  if (type === "resource") {
+    return {
+      kind: "resource",
+      description: "",
+      resourceType: "link",
+      url: null,
+      localAttachment: null,
+    };
+  }
+  if (type === "video") {
+    return {
+      kind: "video",
+      description: "",
+      url: "",
+      provider: "external",
+    };
+  }
+  if (type === "assignment" || type === "quiz") {
+    return {
+      kind: "assessment-draft",
+      instructions: "",
+      dueAt: null,
+      points: null,
+      builderStatus: "not-started",
+    };
+  }
+  return {
+    kind: "text",
+    body:
+      type === "learning-block"
+        ? "Describe the learning goal and instructions here."
+        : "Add learner-facing content here.",
+  };
 }
 
 function cloneModuleCompletion(
@@ -409,6 +622,10 @@ export function createModuleItem(input: CreateModuleItemInput): ModuleItem {
   if (prerequisiteItemIds.includes(input.id)) {
     throw new Error("module item cannot require itself");
   }
+  if (input.content) {
+    assertModuleItemContent(input.content);
+    assertContentMatchesType(input.type, input.content, "content");
+  }
   return {
     id: input.id,
     courseId: input.courseId,
@@ -420,6 +637,7 @@ export function createModuleItem(input: CreateModuleItemInput): ModuleItem {
     availability: cloneAvailability(availability),
     prerequisiteItemIds,
     completion: cloneItemCompletion(completion),
+    content: cloneModuleItemContent(input.content),
     revision: 1,
     revisionId: input.revisionId ?? `${input.id}:r1`,
     audit: audit(input.actorId, input.now),
@@ -430,7 +648,12 @@ export function reviseModuleItem(
   item: ModuleItem,
   changes: Pick<
     ModuleItem,
-    "title" | "type" | "completion" | "availability" | "prerequisiteItemIds"
+    | "title"
+    | "type"
+    | "completion"
+    | "availability"
+    | "prerequisiteItemIds"
+    | "content"
   >,
   actorId: string,
   now: string,
@@ -452,6 +675,10 @@ export function reviseModuleItem(
     );
   }
   assertItemCompletion(changes.completion);
+  if (changes.content) {
+    assertModuleItemContent(changes.content);
+    assertContentMatchesType(changes.type, changes.content, "content");
+  }
   assertNonEmpty(revisionId, "revisionId");
   assertNonEmpty(actorId, "actorId");
   assertIsoDate(now, "now");
@@ -467,6 +694,7 @@ export function reviseModuleItem(
     revisionId,
     prerequisiteItemIds: [...changes.prerequisiteItemIds],
     completion: cloneItemCompletion(changes.completion),
+    content: cloneModuleItemContent(changes.content),
     audit: { ...item.audit, updatedBy: actorId, updatedAt: now },
   };
 }
@@ -485,6 +713,7 @@ function cloneVersionedValue<T extends VersionedAudited>(value: T): T {
       availability: cloneAvailability(item.availability),
       prerequisiteItemIds: [...item.prerequisiteItemIds],
       completion: cloneItemCompletion(item.completion),
+      content: cloneModuleItemContent(item.content),
     } as unknown as T;
   }
   const module = value as unknown as Module;
@@ -639,6 +868,7 @@ export function reorderModuleItems(
       availability: cloneAvailability(item.availability),
       prerequisiteItemIds: [...item.prerequisiteItemIds],
       completion: cloneItemCompletion(item.completion),
+      content: cloneModuleItemContent(item.content),
       revision: item.revision + 1,
       audit: { ...item.audit, updatedBy: actorId, updatedAt: now },
     };
@@ -840,6 +1070,14 @@ export function validateCourseModel(model: CourseModel): string[] {
       assertRevision(item.revision);
       assertNonEmpty(item.revisionId, `item ${item.id}.revisionId`);
       assertItemCompletion(item.completion, `item ${item.id}.completion`);
+      if (item.content) {
+        assertModuleItemContent(item.content, `item ${item.id}.content`);
+        assertContentMatchesType(
+          item.type,
+          item.content,
+          `item ${item.id}.content`,
+        );
+      }
       assertAudit(item.audit, `item ${item.id}.audit`);
     } catch (error) {
       issues.push(
@@ -992,6 +1230,7 @@ export function projectCourse(
         position: role === "teacher" ? item.position : visibleItemPosition,
         state: item.state,
         completion: cloneItemCompletion(item.completion),
+        content: cloneModuleItemContent(item.content),
       })),
     };
   });

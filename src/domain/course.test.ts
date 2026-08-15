@@ -104,6 +104,89 @@ describe("course/module domain", () => {
     });
   });
 
+  it("supports validated learner-facing content without aliasing revisions", () => {
+    const original = createModuleItem({
+      id: "page-1",
+      courseId: "econ-10a",
+      moduleId: "market-shifts",
+      type: "page",
+      title: "Market graph reading",
+      position: 0,
+      actorId: "teacher-1",
+      now,
+      content: {
+        kind: "text",
+        body: "Read the axes before interpreting the shift.",
+      },
+    });
+    const revised = reviseModuleItem(
+      original,
+      {
+        title: "Market graph reading",
+        type: "page",
+        completion: original.completion,
+        availability: original.availability,
+        prerequisiteItemIds: [],
+        content: {
+          kind: "text",
+          body: "Read the axes, identify the determinant, and explain the new equilibrium.",
+        },
+      },
+      "teacher-1",
+      "2026-08-15T10:00:00.000Z",
+    );
+
+    expect(revised.content).toEqual({
+      kind: "text",
+      body: "Read the axes, identify the determinant, and explain the new equilibrium.",
+    });
+    if (revised.content?.kind === "text") revised.content.body = "changed";
+    expect(original.content).toEqual({
+      kind: "text",
+      body: "Read the axes before interpreting the shift.",
+    });
+
+    const courseModel = model();
+    courseModel.items[0] = {
+      ...courseModel.items[0],
+      type: "resource",
+      content: {
+        kind: "resource",
+        description: "A public supply reading.",
+        resourceType: "link",
+        url: "https://example.edu/supply",
+        localAttachment: null,
+      },
+    };
+    expect(
+      projectCourse(courseModel, "student", { now }).modules[0].items[0],
+    ).toMatchObject({
+      content: {
+        kind: "resource",
+        description: "A public supply reading.",
+      },
+    });
+    expect(() =>
+      createModuleItem({
+        id: "bad-resource",
+        courseId: "econ-10a",
+        moduleId: "market-shifts",
+        type: "resource",
+        title: "Bad resource",
+        position: 0,
+        actorId: "teacher-1",
+        now,
+        content: {
+          kind: "resource",
+          description: "Missing URL",
+          resourceType: "link",
+          url: null,
+          localAttachment: null,
+        },
+      }),
+    ).toThrow(/url is required/);
+  });
+
   it("revises content without changing item identity and returns it to draft", () => {
     const original = item("activity", "market-shifts", 0, "published");
     const revised = reviseModuleItem(

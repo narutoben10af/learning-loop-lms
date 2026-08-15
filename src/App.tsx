@@ -25,6 +25,7 @@ import {
   createCourse,
   createModule,
   createModuleItem,
+  defaultModuleItemContent,
   moveModule,
   moveModuleItem,
   projectCourse,
@@ -32,8 +33,10 @@ import {
   transitionReleaseState,
   type CourseModel,
   type DomainRole,
+  type LocalAttachmentMetadata,
   type Module,
   type ModuleItem,
+  type ModuleItemContent,
   type ModuleItemType,
   type ReleaseState,
 } from "./domain/course";
@@ -784,6 +787,17 @@ function StudentCourseHome({
                       (item.id === "supply-shock-activity" && state.submitted);
                     const current =
                       item.id === "supply-shock-activity" && !state.submitted;
+                    const contentDetail = item.content
+                      ? item.content.kind === "text"
+                        ? item.content.body
+                        : item.content.kind === "resource"
+                          ? `${item.content.description} · ${item.content.resourceType}`
+                          : item.content.kind === "video"
+                            ? item.content.description
+                            : item.content.instructions
+                      : item.state === "published"
+                        ? "Original pilot content"
+                        : "Content is ready when your teacher releases it.";
                     return (
                       <li
                         className={
@@ -796,11 +810,10 @@ function StudentCourseHome({
                         </span>
                         <span className="module-item-copy">
                           <strong>{item.title}</strong>
-                          <small>
-                            {item.type === "learning-block"
-                              ? "Interactive activity"
-                              : "Reading page"}
-                          </small>
+                          <small>{itemTypeLabel(item.type)}</small>
+                          <span className="module-item-detail">
+                            {contentDetail}
+                          </span>
                         </span>
                         <span
                           className={
@@ -930,6 +943,330 @@ function releaseLabel(state: ReleaseState): string {
     : state.charAt(0).toUpperCase() + state.slice(1);
 }
 
+type ItemDraft = {
+  title: string;
+  content: ModuleItemContent;
+};
+
+function draftForItem(item: ModuleItem): ItemDraft {
+  return {
+    title: item.title,
+    content: item.content
+      ? structuredClone(item.content)
+      : defaultModuleItemContent(item.type),
+  };
+}
+
+function itemTypeLabel(type: ModuleItemType): string {
+  return type === "learning-block"
+    ? "Learning block"
+    : type.charAt(0).toUpperCase() + type.slice(1);
+}
+
+function itemContentSummary(item: ModuleItem): string {
+  if (!item.content) {
+    return item.state === "published"
+      ? "Existing learner item · edit to add content details"
+      : "Needs authoring before student release";
+  }
+  if (item.content.kind === "text") return item.content.body;
+  if (item.content.kind === "resource") {
+    return item.content.description || "Resource details needed";
+  }
+  if (item.content.kind === "video") {
+    return item.content.description || "Video details needed";
+  }
+  return item.content.instructions || "Assessment instructions needed";
+}
+
+function toDateTimeLocal(value: string | null): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (number: number) => String(number).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function fromDateTimeLocal(value: string): string | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString();
+}
+
+function formatAttachmentSize(sizeBytes: number): string {
+  if (sizeBytes < 1024) return `${sizeBytes} B`;
+  if (sizeBytes < 1024 * 1024) return `${Math.round(sizeBytes / 1024)} KB`;
+  return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function ItemEditor({
+  item,
+  draft,
+  error,
+  onChange,
+  onSave,
+  onCancel,
+}: {
+  item: ModuleItem;
+  draft: ItemDraft;
+  error?: string;
+  onChange: (draft: ItemDraft) => void;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  const updateContent = (content: ModuleItemContent) =>
+    onChange({ ...draft, content });
+  const content = draft.content;
+  return (
+    <section
+      className="composer-inline-editor"
+      aria-labelledby={`edit-item-heading-${item.id}`}
+    >
+      <div className="composer-inline-editor-heading">
+        <div>
+          <p className="eyebrow">Edit {itemTypeLabel(item.type)}</p>
+          <h3 id={`edit-item-heading-${item.id}`}>Learner-facing content</h3>
+        </div>
+        <span className={`state-pill ${item.state}`}>
+          {item.state === "published" ? "Published → draft on save" : "Draft"}
+        </span>
+      </div>
+      <label className="field-label" htmlFor={`edit-item-title-${item.id}`}>
+        Title
+      </label>
+      <input
+        id={`edit-item-title-${item.id}`}
+        className="composer-editor-input"
+        value={draft.title}
+        onChange={(event) => onChange({ ...draft, title: event.target.value })}
+        autoFocus
+      />
+      {(content.kind === "text" ||
+        content.kind === "resource" ||
+        content.kind === "video") && (
+        <label
+          className="field-label"
+          htmlFor={`edit-item-description-${item.id}`}
+        >
+          {content.kind === "text" ? "Body" : "Description"}
+        </label>
+      )}
+      {content.kind === "text" && (
+        <textarea
+          id={`edit-item-description-${item.id}`}
+          rows={5}
+          value={content.body}
+          onChange={(event) =>
+            updateContent({ ...content, body: event.target.value })
+          }
+          placeholder="Write what the learner should read, notice, or do."
+        />
+      )}
+      {content.kind === "resource" && (
+        <>
+          <textarea
+            id={`edit-item-description-${item.id}`}
+            rows={3}
+            value={content.description}
+            onChange={(event) =>
+              updateContent({ ...content, description: event.target.value })
+            }
+            placeholder="Explain why this resource matters for the lesson."
+          />
+          <label
+            className="field-label"
+            htmlFor={`edit-resource-type-${item.id}`}
+          >
+            Resource type
+          </label>
+          <select
+            id={`edit-resource-type-${item.id}`}
+            value={content.resourceType}
+            onChange={(event) => {
+              const resourceType = event.target.value as
+                | "article"
+                | "link"
+                | "file";
+              updateContent({
+                ...content,
+                resourceType,
+                url: resourceType === "file" ? null : content.url,
+                localAttachment:
+                  resourceType === "file" ? content.localAttachment : null,
+              });
+            }}
+          >
+            <option value="article">Article</option>
+            <option value="link">Learning link</option>
+            <option value="file">Local demo file metadata</option>
+          </select>
+          {content.resourceType !== "file" ? (
+            <>
+              <label
+                className="field-label"
+                htmlFor={`edit-resource-url-${item.id}`}
+              >
+                Link URL
+              </label>
+              <input
+                id={`edit-resource-url-${item.id}`}
+                type="url"
+                value={content.url ?? ""}
+                onChange={(event) =>
+                  updateContent({ ...content, url: event.target.value })
+                }
+                placeholder="https://example.edu/learning-resource"
+              />
+            </>
+          ) : (
+            <label className="file-picker">
+              <span>Select a local file (metadata only)</span>
+              <input
+                type="file"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (!file) return;
+                  const attachment: LocalAttachmentMetadata = {
+                    name: file.name,
+                    sizeBytes: file.size,
+                    mimeType: file.type || "application/octet-stream",
+                    lastModifiedAt: new Date(
+                      file.lastModified || Date.now(),
+                    ).toISOString(),
+                    storage: "browser-demo",
+                  };
+                  updateContent({
+                    ...content,
+                    url: null,
+                    localAttachment: attachment,
+                  });
+                  event.currentTarget.value = "";
+                }}
+              />
+            </label>
+          )}
+          {content.localAttachment && (
+            <div className="attachment-note">
+              <strong>{content.localAttachment.name}</strong>
+              <span>
+                {formatAttachmentSize(content.localAttachment.sizeBytes)} ·
+                local metadata only
+              </span>
+            </div>
+          )}
+          <p className="field-note">
+            This prototype never uploads file bytes. A future backend will
+            provide durable, permissioned storage.
+          </p>
+        </>
+      )}
+      {content.kind === "video" && (
+        <>
+          <textarea
+            id={`edit-item-description-${item.id}`}
+            rows={3}
+            value={content.description}
+            onChange={(event) =>
+              updateContent({ ...content, description: event.target.value })
+            }
+            placeholder="Explain what students should notice while watching."
+          />
+          <label className="field-label" htmlFor={`edit-video-url-${item.id}`}>
+            Video URL
+          </label>
+          <input
+            id={`edit-video-url-${item.id}`}
+            type="url"
+            value={content.url}
+            onChange={(event) =>
+              updateContent({ ...content, url: event.target.value })
+            }
+            placeholder="https://www.youtube.com/watch?v=..."
+          />
+          <p className="field-note">
+            Engagement telemetry is not active in this prototype; no browsing
+            outside the LMS is recorded.
+          </p>
+        </>
+      )}
+      {content.kind === "assessment-draft" && (
+        <>
+          <label
+            className="field-label"
+            htmlFor={`edit-item-instructions-${item.id}`}
+          >
+            Instructions
+          </label>
+          <textarea
+            id={`edit-item-instructions-${item.id}`}
+            rows={4}
+            value={content.instructions}
+            onChange={(event) =>
+              updateContent({ ...content, instructions: event.target.value })
+            }
+            placeholder="Tell students what evidence they will produce."
+          />
+          <div className="form-grid-two">
+            <label className="field-label">
+              Due date (optional)
+              <input
+                type="datetime-local"
+                value={toDateTimeLocal(content.dueAt)}
+                onChange={(event) =>
+                  updateContent({
+                    ...content,
+                    dueAt: fromDateTimeLocal(event.target.value),
+                  })
+                }
+              />
+            </label>
+            <label className="field-label">
+              Points (optional)
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={content.points ?? ""}
+                onChange={(event) =>
+                  updateContent({
+                    ...content,
+                    points: event.target.value
+                      ? Number(event.target.value)
+                      : null,
+                  })
+                }
+              />
+            </label>
+          </div>
+          <div className="assessment-boundary" role="note">
+            <strong>{itemTypeLabel(item.type)} draft only</strong>
+            <span>
+              No question bank, attempts, grade columns, or live release is
+              created here.
+            </span>
+            <button className="button quiet" type="button" disabled>
+              Continue to assessment builder (next slice)
+            </button>
+          </div>
+        </>
+      )}
+      {error && (
+        <p className="field-note composer-error" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="composer-editor-actions-row">
+        <button className="button primary" type="button" onClick={onSave}>
+          Save content
+        </button>
+        <button className="button quiet" type="button" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function TeacherComposer({
   course,
   setCourse,
@@ -942,8 +1279,9 @@ function TeacherComposer({
   const [selectedModuleId, setSelectedModuleId] = useState(
     pilotCourseModel.modules[0].id,
   );
-  const [titleDrafts, setTitleDrafts] = useState<Record<string, string>>({});
-  const [titleErrors, setTitleErrors] = useState<Record<string, string>>({});
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [itemDrafts, setItemDrafts] = useState<Record<string, ItemDraft>>({});
+  const [editorErrors, setEditorErrors] = useState<Record<string, string>>({});
   const [orderNotice, setOrderNotice] = useState("");
   const selectedModule =
     course.modules.find((module) => module.id === selectedModuleId) ??
@@ -983,46 +1321,17 @@ function TeacherComposer({
       now: DEMO_NOW,
     });
     replaceItems([...selectedItems, item]);
+    setItemDrafts((current) => ({ ...current, [item.id]: draftForItem(item) }));
+    setEditorErrors((current) => {
+      const next = { ...current };
+      delete next[item.id];
+      return next;
+    });
+    setEditingItemId(item.id);
   };
   const updateItem = (nextItem: ModuleItem) => {
     replaceItems(
       selectedItems.map((item) => (item.id === nextItem.id ? nextItem : item)),
-    );
-  };
-  const commitItemTitle = (item: ModuleItem) => {
-    const draft = titleDrafts[item.id];
-    if (draft === undefined) return;
-    if (!draft.trim()) {
-      setTitleErrors((current) => ({
-        ...current,
-        [item.id]: "A module item needs a title before it can be saved.",
-      }));
-      return;
-    }
-    setTitleDrafts((current) => {
-      const next = { ...current };
-      delete next[item.id];
-      return next;
-    });
-    setTitleErrors((current) => {
-      const next = { ...current };
-      delete next[item.id];
-      return next;
-    });
-    if (draft.trim() === item.title) return;
-    updateItem(
-      reviseModuleItem(
-        item,
-        {
-          title: draft.trim(),
-          type: item.type,
-          completion: item.completion,
-          availability: item.availability,
-          prerequisiteItemIds: item.prerequisiteItemIds,
-        },
-        "teacher-1",
-        DEMO_NOW,
-      ),
     );
   };
   const moveItem = (itemId: string, targetPosition: number) => {
@@ -1060,6 +1369,54 @@ function TeacherComposer({
   };
   const setItemState = (item: ModuleItem, nextState: ReleaseState) => {
     updateItem(transitionReleaseState(item, nextState, "teacher-1", DEMO_NOW));
+  };
+  const openEditor = (item: ModuleItem) => {
+    setItemDrafts((current) => ({
+      ...current,
+      [item.id]: draftForItem(item),
+    }));
+    setEditorErrors((current) => {
+      const next = { ...current };
+      delete next[item.id];
+      return next;
+    });
+    setEditingItemId(item.id);
+  };
+  const saveItemContent = (item: ModuleItem) => {
+    const draft = itemDrafts[item.id] ?? draftForItem(item);
+    try {
+      updateItem(
+        reviseModuleItem(
+          item,
+          {
+            title: draft.title.trim(),
+            type: item.type,
+            completion: item.completion,
+            availability: item.availability,
+            prerequisiteItemIds: item.prerequisiteItemIds,
+            content: draft.content,
+          },
+          "teacher-1",
+          DEMO_NOW,
+        ),
+      );
+      setEditorErrors((current) => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
+      });
+      setEditingItemId(null);
+      setOrderNotice(`${item.title} saved as a new draft revision.`);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Content is invalid.";
+      setEditorErrors((current) => ({
+        ...current,
+        [item.id]: message.includes("moduleItem.title")
+          ? "A module item needs a title before it can be saved."
+          : message,
+      }));
+    }
   };
   const setModuleState = (nextState: ReleaseState) => {
     setCourse((current) => ({
@@ -1298,33 +1655,10 @@ function TeacherComposer({
                       {releaseLabel(item.state)}
                     </span>
                   </div>
-                  <label className="sr-only" htmlFor={`item-title-${item.id}`}>
-                    Title for {item.title}
-                  </label>
-                  <input
-                    id={`item-title-${item.id}`}
-                    className="composer-title-input"
-                    value={titleDrafts[item.id] ?? item.title}
-                    aria-invalid={Boolean(titleErrors[item.id])}
-                    onChange={(event) =>
-                      setTitleDrafts((current) => ({
-                        ...current,
-                        [item.id]: event.target.value,
-                      }))
-                    }
-                    onBlur={() => commitItemTitle(item)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        commitItemTitle(item);
-                      }
-                    }}
-                  />
-                  {titleErrors[item.id] && (
-                    <span className="field-note composer-error" role="alert">
-                      {titleErrors[item.id]}
-                    </span>
-                  )}
+                  <h3 className="composer-item-title">{item.title}</h3>
+                  <p className="composer-item-summary">
+                    {itemContentSummary(item)}
+                  </p>
                   <details>
                     <summary>Availability &amp; prerequisites</summary>
                     <p>
@@ -1336,6 +1670,28 @@ function TeacherComposer({
                         : " · No prerequisite"}
                     </p>
                   </details>
+                  {editingItemId === item.id && (
+                    <ItemEditor
+                      item={item}
+                      draft={itemDrafts[item.id] ?? draftForItem(item)}
+                      error={editorErrors[item.id]}
+                      onChange={(draft) =>
+                        setItemDrafts((current) => ({
+                          ...current,
+                          [item.id]: draft,
+                        }))
+                      }
+                      onSave={() => saveItemContent(item)}
+                      onCancel={() => {
+                        setEditingItemId(null);
+                        setEditorErrors((current) => {
+                          const next = { ...current };
+                          delete next[item.id];
+                          return next;
+                        });
+                      }}
+                    />
+                  )}
                 </div>
                 <div className="composer-item-actions">
                   <label>
@@ -1356,6 +1712,14 @@ function TeacherComposer({
                       ))}
                     </select>
                   </label>
+                  <button
+                    className="button quiet compact-button"
+                    type="button"
+                    aria-expanded={editingItemId === item.id}
+                    onClick={() => openEditor(item)}
+                  >
+                    {editingItemId === item.id ? "Editing" : "Edit content"}
+                  </button>
                   {item.state === "published" ? (
                     <button
                       className="button quiet compact-button"
@@ -1368,9 +1732,14 @@ function TeacherComposer({
                     <button
                       className="button primary compact-button"
                       type="button"
+                      disabled={
+                        item.type === "assignment" || item.type === "quiz"
+                      }
                       onClick={() => setItemState(item, "published")}
                     >
-                      Publish
+                      {item.type === "assignment" || item.type === "quiz"
+                        ? "Builder required"
+                        : "Publish"}
                     </button>
                   )}
                 </div>
