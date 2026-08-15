@@ -15,10 +15,11 @@ Learning Loop is an experimental, learning-first LMS growing from one validated 
 - A reusable, declarative Economics graph renderer, initially exercised with a supply-shift scenario.
 - Equivalent pointer, keyboard, button, and table-based interactions.
 - Separate student activity and teacher evidence/marking experiences. A clearly labelled preview switch exists only for author/demo QA.
+- A role-projected **My workspace** course dashboard with teacher course creation/selection and a clean student course list. New courses begin as private local drafts.
 - A teacher-only Module Composer with contextual editing for pages, learning blocks, resources, videos, and honest draft-only assessment handoffs.
 - Minimal private mastery evidence tied to demonstrated outcomes, not time, streaks, or public ranking.
 
-The current deployment remains a narrow vertical slice, not a complete LMS. The next milestone changes the first screen to **My workspace**, adds local multi-course creation/selection, and delivers a real course shell with functional Home, People, Announcements, Files, and Modules. See the [canonical master product plan](docs/MASTER_PRODUCT_PLAN.md) for the honest gap assessment, information architecture, and phase boundaries.
+The current build now starts at **My workspace** and supports local multi-course creation/selection, but it is still not a complete LMS. The next milestone delivers a real course shell with functional Home, People, Announcements, Files, and Modules. See the [canonical master product plan](docs/MASTER_PRODUCT_PLAN.md) for the honest gap assessment, information architecture, and phase boundaries.
 
 Not included: payments, live AI or model-provider calls, a live MCP server, native Flutter apps, Canvas integration, parent access, attendance, public registration, remote proctoring, Python execution, or copied exam content.
 
@@ -36,8 +37,9 @@ The first slice is a TypeScript web application with local synthetic state. Late
 
 ```text
 responsive web UI
-  -> typed activity and graph domain state
-  -> local prototype persistence
+  -> role-projected workspace/course catalogue
+  -> typed course, module, activity and graph domain state
+  -> versioned local prototype persistence
 
 later: web / Flutter
   -> tenant-aware LMS domain API

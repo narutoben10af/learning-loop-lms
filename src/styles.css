@@ -87,6 +87,25 @@ p {
   gap: 0.7rem;
   text-decoration: none;
 }
+.brand-button {
+  background: transparent;
+  border: 0;
+  min-height: 2.75rem;
+  padding: 0;
+  text-align: left;
+}
+.student-app-header {
+  align-items: center;
+}
+.student-account-badge {
+  background: var(--teal-soft);
+  border: 1px solid #c5e3dc;
+  border-radius: 999px;
+  color: var(--teal-dark);
+  font-size: 0.76rem;
+  font-weight: 800;
+  padding: 0.65rem 0.85rem;
+}
 .brand-mark {
   align-items: center;
   background: var(--ink);
@@ -661,6 +680,205 @@ textarea {
 }
 .submit-button {
   width: 100%;
+}
+
+.workspace-shell {
+  margin: 0 auto;
+  max-width: 1240px;
+  min-height: 100vh;
+  padding: 3.25rem clamp(1rem, 4vw, 3rem) 5rem;
+}
+.workspace-hero {
+  align-items: end;
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin-bottom: 2rem;
+}
+.workspace-hero h1 {
+  font-size: clamp(2.7rem, 7vw, 5.7rem);
+  max-width: 830px;
+}
+.workspace-create-button {
+  box-shadow: 0 12px 30px rgb(18 82 75 / 18%);
+  min-width: 11rem;
+}
+.create-course-panel {
+  background: var(--ink);
+  border-radius: 1.3rem;
+  box-shadow: 0 24px 70px rgb(23 45 42 / 18%);
+  color: white;
+  display: grid;
+  gap: 1.3rem 2rem;
+  grid-template-columns: minmax(230px, 0.6fr) minmax(0, 1.4fr);
+  margin-bottom: 1.3rem;
+  padding: clamp(1.1rem, 3vw, 2rem);
+}
+.create-course-intro p:not(.eyebrow),
+.create-course-panel .privacy-note {
+  color: #bed0cb;
+}
+.create-course-fields {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.create-course-fields label {
+  color: #dce8e4;
+  display: grid;
+  font-size: 0.75rem;
+  font-weight: 800;
+  gap: 0.35rem;
+}
+.create-course-fields input {
+  background: rgb(255 255 255 / 10%);
+  border: 1px solid rgb(255 255 255 / 25%);
+  border-radius: 0.7rem;
+  color: white;
+  min-height: 2.75rem;
+  padding: 0.65rem 0.75rem;
+  width: 100%;
+}
+.create-course-fields input::placeholder {
+  color: #a9bcb7;
+}
+.create-course-term {
+  grid-column: 1 / -1;
+}
+.create-course-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  grid-column: 2;
+}
+.create-course-panel .privacy-note {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.create-course-panel .composer-error {
+  background: #fff4dc;
+  border-radius: 0.65rem;
+  color: #6d4300;
+  grid-column: 2;
+  margin: 0;
+  padding: 0.7rem;
+}
+.workspace-summary {
+  background: var(--teal-soft);
+  border: 1px solid #c5e3dc;
+  border-radius: 1.1rem;
+  display: grid;
+  gap: 1px;
+  grid-template-columns: repeat(3, 1fr);
+  margin-bottom: 2.4rem;
+  overflow: hidden;
+}
+.workspace-summary article {
+  background: rgb(255 255 255 / 54%);
+  display: grid;
+  gap: 0.3rem;
+  min-height: 8.4rem;
+  padding: 1.15rem;
+}
+.workspace-summary span,
+.workspace-summary small {
+  color: var(--muted);
+  font-size: 0.73rem;
+}
+.workspace-summary strong {
+  align-self: end;
+  font-size: 1.45rem;
+}
+.workspace-courses .section-heading {
+  margin-bottom: 1rem;
+}
+.workspace-course-grid {
+  display: grid;
+  gap: 1.1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.workspace-course-card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 1.15rem;
+  box-shadow: var(--shadow);
+  display: grid;
+  grid-template-columns: 0.55rem minmax(0, 1fr);
+  min-width: 0;
+  overflow: hidden;
+}
+.workspace-course-band {
+  background: linear-gradient(180deg, var(--teal), #88b8aa 62%, var(--lime));
+}
+.workspace-course-card-body {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1.3rem;
+}
+.workspace-course-card h3 {
+  font-size: clamp(1.45rem, 3vw, 2rem);
+  letter-spacing: -0.035em;
+  margin: 0;
+}
+.workspace-course-card p {
+  color: var(--muted);
+  margin: -0.4rem 0 0;
+}
+.workspace-course-meta {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 0.72rem;
+  font-weight: 800;
+  gap: 0.6rem;
+  justify-content: space-between;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.state-pill.active {
+  background: var(--teal-soft);
+  color: var(--teal-dark);
+}
+.workspace-course-signals {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+}
+.workspace-course-signals div {
+  background: var(--wash);
+  border-radius: 0.7rem;
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+  padding: 0.7rem;
+}
+.workspace-course-signals dt {
+  color: var(--muted);
+  font-size: 0.66rem;
+}
+.workspace-course-signals dd {
+  font-size: 0.83rem;
+  font-weight: 800;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.workspace-open-course {
+  justify-self: start;
+}
+.workspace-empty {
+  background: var(--paper);
+  border: 1px dashed #aec0ba;
+  border-radius: 1rem;
+  padding: 1.4rem;
+}
+.workspace-empty h3,
+.workspace-empty p {
+  margin: 0;
+}
+.workspace-empty p {
+  color: var(--muted);
+  margin-top: 0.3rem;
 }
 
 .course-home-shell,
@@ -1545,6 +1763,19 @@ footer button {
   .composer-sidebar {
     position: static;
   }
+  .workspace-hero,
+  .create-course-panel {
+    grid-template-columns: 1fr;
+  }
+  .workspace-create-button,
+  .create-course-actions,
+  .create-course-panel .composer-error {
+    grid-column: 1;
+    justify-self: start;
+  }
+  .workspace-course-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 520px) {
@@ -1557,6 +1788,17 @@ footer button {
   }
   .page-shell {
     padding-top: 2rem;
+  }
+  .workspace-shell {
+    padding-top: 2rem;
+  }
+  .student-app-header {
+    align-items: center;
+    flex-direction: row;
+  }
+  .student-account-badge {
+    max-width: 9.5rem;
+    text-align: center;
   }
   h1 {
     font-size: clamp(2.25rem, 13vw, 3.4rem);
@@ -1641,6 +1883,23 @@ footer button {
   }
   .course-overview {
     grid-template-columns: 1fr;
+  }
+  .workspace-summary,
+  .create-course-fields {
+    grid-template-columns: 1fr;
+  }
+  .create-course-term {
+    grid-column: 1;
+  }
+  .workspace-course-signals {
+    grid-template-columns: 1fr 1fr;
+  }
+  .workspace-course-signals div:last-child {
+    grid-column: 1 / -1;
+  }
+  .workspace-open-course,
+  .workspace-create-button {
+    width: 100%;
   }
   .module-title-row,
   .section-heading,

@@ -6,7 +6,7 @@ Last reconciled: 2026-08-15
 
 ## Honest starting point
 
-Learning Loop currently proves one strong idea: a student can predict, manipulate a reusable Economics graph, explain the result, and send evidence into a teacher review loop. It also has a small Module Composer. That is a useful vertical slice, but it is not yet a recognisable, day-to-day LMS. The deployed first screen does not provide a course dashboard, multi-course management, roster, announcements, media library, or a complete course workspace. Comparing that narrow slice with a mature LMS therefore exposes a real experience gap, not a polish issue.
+Learning Loop first proved one strong idea: a student can predict, manipulate a reusable Economics graph, explain the result, and send evidence into a teacher review loop. It also has a small Module Composer. The first workspace milestone now adds a role-projected course dashboard and private local course creation, but the product is not yet a recognisable, day-to-day LMS because roster, announcements, media library, and the complete course workspace are still being delivered. Comparing the remaining gap with a mature LMS exposes a product-system gap, not a polish issue.
 
 The reset keeps the validated Economics learning loop and builds the course operating system around it. Canvas workflow observations inform the jobs that must be supported; Learning Loop will not copy Canvas code, language, visual trade dress, navigation density, or course content. Its original differentiator is a quieter workspace organised around the next teaching action and the learner evidence it will create.
 
@@ -93,6 +93,8 @@ Evidence limit: screenshots were deliberately not tracked or published because t
 ### Milestone 1 — Usable course workspace now
 
 Goal: make the public prototype recognisable and useful as an LMS shell while keeping all data synthetic and device-local.
+
+Current status: the workspace/course contract and My workspace dashboard are implemented; the selected-course navigation shell and functional People, Announcements, Files, and Modules destinations remain the immediate delivery sequence.
 
 Deliver in focused PRs:
 
