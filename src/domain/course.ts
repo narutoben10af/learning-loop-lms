@@ -270,6 +270,11 @@ function assertLocalAttachment(
   attachment: LocalAttachmentMetadata,
   field: string,
 ): void {
+  assertExactKeys(
+    attachment,
+    ["name", "sizeBytes", "mimeType", "lastModifiedAt", "storage"],
+    field,
+  );
   assertNonEmpty(attachment.name, `${field}.name`);
   assertNonEmpty(attachment.mimeType, `${field}.mimeType`);
   if (
@@ -285,6 +290,19 @@ function assertLocalAttachment(
   }
 }
 
+function assertExactKeys(
+  value: object,
+  allowed: readonly string[],
+  field: string,
+): void {
+  const extras = Object.keys(value).filter((key) => !allowed.includes(key));
+  if (extras.length) {
+    throw new Error(
+      `${field} contains unsupported fields: ${extras.join(", ")}`,
+    );
+  }
+}
+
 export function assertModuleItemContent(
   content: ModuleItemContent,
   field = "content",
@@ -293,11 +311,20 @@ export function assertModuleItemContent(
     throw new Error(`${field} is invalid`);
   }
   if (content.kind === "text") {
+    assertExactKeys(content, ["kind", "body"], field);
     assertNonEmpty(content.body, `${field}.body`);
     return;
   }
   if (content.kind === "resource") {
+    assertExactKeys(
+      content,
+      ["kind", "description", "resourceType", "url", "localAttachment"],
+      field,
+    );
     assertNonEmpty(content.description, `${field}.description`);
+    if (!["article", "link", "file"].includes(content.resourceType)) {
+      throw new Error(`${field}.resourceType is invalid`);
+    }
     if (content.resourceType === "file") {
       if (content.url !== null) {
         throw new Error(`${field}.url must be null for file resources`);
@@ -325,6 +352,7 @@ export function assertModuleItemContent(
     return;
   }
   if (content.kind === "video") {
+    assertExactKeys(content, ["kind", "description", "url", "provider"], field);
     assertNonEmpty(content.description, `${field}.description`);
     assertUrl(content.url, `${field}.url`);
     if (content.provider !== "youtube" && content.provider !== "external") {
@@ -333,6 +361,11 @@ export function assertModuleItemContent(
     return;
   }
   if (content.kind === "assessment-draft") {
+    assertExactKeys(
+      content,
+      ["kind", "instructions", "dueAt", "points", "builderStatus"],
+      field,
+    );
     assertNonEmpty(content.instructions, `${field}.instructions`);
     if (content.dueAt !== null) assertIsoDate(content.dueAt, `${field}.dueAt`);
     if (
@@ -443,16 +476,56 @@ export function cloneModuleItemContent(
   content: ModuleItemContent | undefined,
 ): ModuleItemContent | undefined {
   if (!content) return undefined;
-  if (content.kind === "text") return { ...content };
+  if (content.kind === "text") {
+    return { kind: "text", body: content.body };
+  }
   if (content.kind === "resource") {
     return {
-      ...content,
+      kind: "resource",
+      description: content.description,
+      resourceType: content.resourceType,
+      url: content.url,
       localAttachment: content.localAttachment
-        ? { ...content.localAttachment }
+        ? {
+            name: content.localAttachment.name,
+            sizeBytes: content.localAttachment.sizeBytes,
+            mimeType: content.localAttachment.mimeType,
+            lastModifiedAt: content.localAttachment.lastModifiedAt,
+            storage: content.localAttachment.storage,
+          }
         : null,
     };
   }
-  return { ...content };
+  if (content.kind === "video") {
+    return {
+      kind: "video",
+      description: content.description,
+      url: content.url,
+      provider: content.provider,
+    };
+  }
+  return {
+    kind: "assessment-draft",
+    instructions: content.instructions,
+    dueAt: content.dueAt,
+    points: content.points,
+    builderStatus: content.builderStatus,
+  };
+}
+
+function projectModuleItemContent(
+  content: ModuleItemContent | undefined,
+  role: DomainRole,
+): ModuleItemContent | undefined {
+  const cloned = cloneModuleItemContent(content);
+  if (
+    role === "student" &&
+    cloned?.kind === "resource" &&
+    cloned.resourceType === "file"
+  ) {
+    return { ...cloned, localAttachment: null };
+  }
+  return cloned;
 }
 
 export function defaultModuleItemContent(
@@ -734,6 +807,17 @@ export function transitionReleaseState<T extends VersionedAudited>(
   if (value.state === nextState) return value;
   if (!releaseTransitions[value.state].includes(nextState)) {
     throw new Error(`cannot transition ${value.state} to ${nextState}`);
+  }
+  if (nextState === "published" && "moduleId" in value) {
+    const item = value as unknown as ModuleItem;
+    if (item.type === "assignment" || item.type === "quiz") {
+      throw new Error(
+        "assessment drafts must continue through the assessment builder before publishing",
+      );
+    }
+    if (!item.content) {
+      throw new Error("module item content must be saved before publishing");
+    }
   }
   assertNonEmpty(actorId, "actorId");
   assertIsoDate(now, "now");
@@ -1078,6 +1162,12 @@ export function validateCourseModel(model: CourseModel): string[] {
           `item ${item.id}.content`,
         );
       }
+      if (
+        item.state === "published" &&
+        (item.type === "assignment" || item.type === "quiz")
+      ) {
+        issues.push(`item ${item.id}: assessment drafts cannot be published`);
+      }
       assertAudit(item.audit, `item ${item.id}.audit`);
     } catch (error) {
       issues.push(
@@ -1151,7 +1241,9 @@ export function projectCourse(
     const visibleItems = orderedItems.filter((item) =>
       role === "teacher"
         ? item.state !== "archived"
-        : isAvailable(
+        : item.type !== "assignment" &&
+          item.type !== "quiz" &&
+          isAvailable(
             item.state,
             item.availability,
             context,
@@ -1162,6 +1254,9 @@ export function projectCourse(
     const lockedItems =
       role === "student"
         ? orderedItems.filter((item) => {
+            if (item.type === "assignment" || item.type === "quiz") {
+              return false;
+            }
             if (item.state !== "scheduled" && item.state !== "published") {
               return false;
             }
@@ -1230,7 +1325,7 @@ export function projectCourse(
         position: role === "teacher" ? item.position : visibleItemPosition,
         state: item.state,
         completion: cloneItemCompletion(item.completion),
-        content: cloneModuleItemContent(item.content),
+        content: projectModuleItemContent(item.content, role),
       })),
     };
   });

@@ -1,6 +1,7 @@
 import {
   useEffect,
   useReducer,
+  useRef,
   useState,
   type CSSProperties,
   type Dispatch,
@@ -120,6 +121,10 @@ function buildPilotCourseModel(): CourseModel {
       position: 0,
       state: "published",
       completion: { type: "view" },
+      content: {
+        kind: "text",
+        body: "Use the axes and equilibrium marker as your starting point.",
+      },
       actorId: "teacher-1",
       now: DEMO_NOW,
     }),
@@ -133,6 +138,10 @@ function buildPilotCourseModel(): CourseModel {
       state: "published",
       prerequisiteItemIds: ["welcome"],
       completion: { type: "submit" },
+      content: {
+        kind: "text",
+        body: "Adjust one curve, observe the new equilibrium, and explain the cause.",
+      },
       actorId: "teacher-1",
       now: DEMO_NOW,
     }),
@@ -149,6 +158,13 @@ function buildPilotCourseModel(): CourseModel {
         endsAt: null,
       },
       completion: { type: "view" },
+      content: {
+        kind: "resource",
+        description: "A guided reading on how price controls change a market.",
+        resourceType: "article",
+        url: "https://example.edu/economics/price-controls",
+        localAttachment: null,
+      },
       actorId: "teacher-1",
       now: DEMO_NOW,
     }),
@@ -159,7 +175,7 @@ function buildPilotCourseModel(): CourseModel {
       type: "quiz",
       title: "Policy choices: quick check",
       position: 1,
-      state: "published",
+      state: "scheduled",
       availability: {
         startsAt: "2026-08-22T09:00:00.000Z",
         endsAt: null,
@@ -1020,6 +1036,7 @@ function ItemEditor({
   return (
     <section
       className="composer-inline-editor"
+      id={`editor-for-${item.id}`}
       aria-labelledby={`edit-item-heading-${item.id}`}
     >
       <div className="composer-inline-editor-heading">
@@ -1271,18 +1288,29 @@ function TeacherComposer({
   course,
   setCourse,
   setScreen,
+  itemDrafts,
+  setItemDrafts,
 }: {
   course: CourseModel;
   setCourse: Dispatch<SetStateAction<CourseModel>>;
   setScreen: (screen: DemoScreen) => void;
+  itemDrafts: Record<string, ItemDraft>;
+  setItemDrafts: Dispatch<SetStateAction<Record<string, ItemDraft>>>;
 }) {
   const [selectedModuleId, setSelectedModuleId] = useState(
     pilotCourseModel.modules[0].id,
   );
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
-  const [itemDrafts, setItemDrafts] = useState<Record<string, ItemDraft>>({});
   const [editorErrors, setEditorErrors] = useState<Record<string, string>>({});
   const [orderNotice, setOrderNotice] = useState("");
+  const editButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const focusAfterClose = useRef<string | null>(null);
+  useEffect(() => {
+    if (editingItemId === null && focusAfterClose.current) {
+      editButtonRefs.current[focusAfterClose.current]?.focus();
+      focusAfterClose.current = null;
+    }
+  }, [editingItemId]);
   const selectedModule =
     course.modules.find((module) => module.id === selectedModuleId) ??
     course.modules[0];
@@ -1371,9 +1399,10 @@ function TeacherComposer({
     updateItem(transitionReleaseState(item, nextState, "teacher-1", DEMO_NOW));
   };
   const openEditor = (item: ModuleItem) => {
+    if (editingItemId === item.id) return;
     setItemDrafts((current) => ({
       ...current,
-      [item.id]: draftForItem(item),
+      [item.id]: current[item.id] ?? draftForItem(item),
     }));
     setEditorErrors((current) => {
       const next = { ...current };
@@ -1406,6 +1435,12 @@ function TeacherComposer({
         return next;
       });
       setEditingItemId(null);
+      setItemDrafts((current) => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
+      });
+      focusAfterClose.current = item.id;
       setOrderNotice(`${item.title} saved as a new draft revision.`);
     } catch (error) {
       const message =
@@ -1684,6 +1719,12 @@ function TeacherComposer({
                       onSave={() => saveItemContent(item)}
                       onCancel={() => {
                         setEditingItemId(null);
+                        setItemDrafts((current) => {
+                          const next = { ...current };
+                          delete next[item.id];
+                          return next;
+                        });
+                        focusAfterClose.current = item.id;
                         setEditorErrors((current) => {
                           const next = { ...current };
                           delete next[item.id];
@@ -1716,6 +1757,10 @@ function TeacherComposer({
                     className="button quiet compact-button"
                     type="button"
                     aria-expanded={editingItemId === item.id}
+                    aria-controls={`editor-for-${item.id}`}
+                    ref={(element) => {
+                      editButtonRefs.current[item.id] = element;
+                    }}
                     onClick={() => openEditor(item)}
                   >
                     {editingItemId === item.id ? "Editing" : "Edit content"}
@@ -1733,13 +1778,18 @@ function TeacherComposer({
                       className="button primary compact-button"
                       type="button"
                       disabled={
-                        item.type === "assignment" || item.type === "quiz"
+                        item.type === "assignment" ||
+                        item.type === "quiz" ||
+                        !item.content ||
+                        editingItemId === item.id
                       }
                       onClick={() => setItemState(item, "published")}
                     >
                       {item.type === "assignment" || item.type === "quiz"
                         ? "Builder required"
-                        : "Publish"}
+                        : !item.content || editingItemId === item.id
+                          ? "Save content first"
+                          : "Publish"}
                     </button>
                   )}
                 </div>
@@ -2078,6 +2128,9 @@ export function App() {
   const [course, setCourse] = useState<CourseModel>(() =>
     loadCourseModel(window.localStorage),
   );
+  const [composerDrafts, setComposerDrafts] = useState<
+    Record<string, ItemDraft>
+  >({});
   const [state, dispatch] = useReducer(
     activityReducer,
     initialActivityState,
@@ -2111,6 +2164,8 @@ export function App() {
           course={course}
           setCourse={setCourse}
           setScreen={setScreen}
+          itemDrafts={composerDrafts}
+          setItemDrafts={setComposerDrafts}
         />
       )}
       {screen === "teacher-evidence" && (
@@ -2127,6 +2182,7 @@ export function App() {
           onClick={() => {
             dispatch({ type: "reset" });
             setCourse(structuredClone(pilotCourseModel));
+            setComposerDrafts({});
           }}
         >
           Reset local demo

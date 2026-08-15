@@ -175,7 +175,7 @@ describe("learning-loop prototype", () => {
 
   it("shows release state and teacher composer actions without crossing role surfaces", () => {
     render(createElement(App));
-    expect(screen.getByText("2 items locked")).toBeInTheDocument();
+    expect(screen.getByText("1 item locked")).toBeInTheDocument();
     expect(
       screen.getByText("Available from 22 Aug · Your teacher sets release"),
     ).toBeInTheDocument();
@@ -225,6 +225,39 @@ describe("learning-loop prototype", () => {
     expect(screen.getByText("Market graph reading")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
     expect(screen.getByText("Market graph reading")).toBeInTheDocument();
+  });
+
+  it("requires saved learner content before a new item can publish", () => {
+    render(createElement(App));
+    fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Page" }));
+
+    expect(
+      screen.getByRole("button", { name: "Save content first" }),
+    ).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Student course" }));
+    expect(screen.queryByText("New page")).not.toBeInTheDocument();
+  });
+
+  it("keeps an unsaved editor draft through author preview and restores focus", () => {
+    render(createElement(App));
+    fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Page" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Title" }), {
+      target: { value: "Drafted reading" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Student course" }));
+    expect(screen.queryByText("Drafted reading")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
+
+    const editButtons = screen.getAllByRole("button", { name: "Edit content" });
+    fireEvent.click(editButtons[editButtons.length - 1]);
+    expect(screen.getByRole("textbox", { name: "Title" })).toHaveValue(
+      "Drafted reading",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(editButtons[editButtons.length - 1]).toHaveFocus();
   });
 
   it("allows an empty title draft while preserving the canonical saved title", () => {
@@ -369,5 +402,26 @@ describe("learning-loop prototype", () => {
       screen.getByRole("heading", { name: "Economics 10A" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Week 1 · Market signals")).toBeInTheDocument();
+  });
+
+  it("reloads saved authored content from the versioned local model", () => {
+    const view = render(createElement(App));
+    fireEvent.click(screen.getByRole("button", { name: "Teacher workspace" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Page" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Title" }), {
+      target: { value: "Persisted lesson note" },
+    });
+    fireEvent.change(screen.getByLabelText("Body"), {
+      target: { value: "This saved content survives a reload." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save content" }));
+    fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+    view.unmount();
+
+    render(createElement(App));
+    expect(screen.getByText("Persisted lesson note")).toBeInTheDocument();
+    expect(
+      screen.getByText("This saved content survives a reload."),
+    ).toBeInTheDocument();
   });
 });

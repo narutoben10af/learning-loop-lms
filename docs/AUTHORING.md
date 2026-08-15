@@ -11,7 +11,7 @@ The teacher-only Module Composer is the contextual authoring path for the pilot.
 
 ## State and role boundary
 
-Saving a published item creates a new draft revision and removes that item from the student projection until the teacher publishes it again. Assignment and quiz drafts cannot be published from this slice, so they cannot create phantom gradebook records. Student screens receive only the minimised `projectCourse(..., "student")` content projection; authoring controls never appear there. All current persistence is synthetic, local browser state with version validation and safe fallback to the pilot fixture.
+Saving a published item creates a new draft revision and removes that item from the student projection until the teacher publishes it again. Assignment and quiz drafts cannot be published from this slice, so they cannot create phantom gradebook records. Student screens receive only the minimised `projectCourse(..., "student")` content projection; authoring controls never appear there, and local file metadata is not returned to students. Unsaved edits remain in the author session through preview navigation until Save or Cancel; Reset clears them. All current persistence is synthetic, local browser state with version validation and safe fallback to the pilot fixture.
 
 ## Next handoff
 

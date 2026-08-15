@@ -33,6 +33,7 @@ function item(
     title: id,
     position,
     state,
+    content: { kind: "text", body: `Learner content for ${id}.` },
     actorId: "teacher-1",
     now,
   });
@@ -166,6 +167,54 @@ describe("course/module domain", () => {
         description: "A public supply reading.",
       },
     });
+
+    const fileModel = model();
+    fileModel.items[0] = {
+      ...fileModel.items[0],
+      type: "resource",
+      content: {
+        kind: "resource",
+        description: "A local graph handout.",
+        resourceType: "file",
+        url: null,
+        localAttachment: {
+          name: "graph.pdf",
+          sizeBytes: 128,
+          mimeType: "application/pdf",
+          lastModifiedAt: now,
+          storage: "browser-demo",
+        },
+      },
+    };
+    const studentFile = projectCourse(fileModel, "student", { now });
+    expect(studentFile.modules[0].items[0].content).toEqual({
+      kind: "resource",
+      description: "A local graph handout.",
+      resourceType: "file",
+      url: null,
+      localAttachment: null,
+    });
+
+    const malformedResource = {
+      ...courseModel,
+      items: [
+        {
+          ...courseModel.items[0],
+          content: {
+            kind: "resource" as const,
+            description: "Unexpected payload",
+            resourceType: "javascript-like" as "link",
+            url: null,
+            localAttachment: null,
+            bytes: "SECRET",
+          },
+        },
+        courseModel.items[1],
+      ],
+    };
+    expect(validateCourseModel(malformedResource).join(";")).toMatch(
+      /resourceType is invalid|unsupported fields/,
+    );
     expect(() =>
       createModuleItem({
         id: "bad-resource",
@@ -311,6 +360,90 @@ describe("course/module domain", () => {
     expect(draft.availability.startsAt).toBeNull();
     expect(draft.prerequisiteItemIds).toEqual([]);
     expect(draft.completion).toEqual({ type: "view" });
+  });
+
+  it("keeps assessment drafts out of live release", () => {
+    const assessmentDraft = createModuleItem({
+      id: "draft-assignment",
+      courseId: "econ-10a",
+      moduleId: "market-shifts",
+      type: "assignment",
+      title: "Household budget response",
+      position: 0,
+      content: {
+        kind: "assessment-draft",
+        instructions: "Explain the evidence you would use.",
+        dueAt: null,
+        points: null,
+        builderStatus: "not-started",
+      },
+      actorId: "teacher-1",
+      now,
+    });
+
+    expect(() =>
+      transitionReleaseState(assessmentDraft, "published", "teacher-1", now),
+    ).toThrow(/assessment drafts must continue/);
+
+    const source = model();
+    const scheduledDraft = {
+      ...assessmentDraft,
+      state: "scheduled" as const,
+      moduleId: source.modules[0].id,
+      courseId: source.course.id,
+      position: 2,
+    };
+    const student = projectCourse(
+      { ...source, items: [...source.items, scheduledDraft] },
+      "student",
+      { now },
+    );
+    const teacher = projectCourse(
+      { ...source, items: [...source.items, scheduledDraft] },
+      "teacher",
+      { now },
+    );
+    expect(student.modules[0].items.map((entry) => entry.id)).not.toContain(
+      "draft-assignment",
+    );
+    expect(teacher.modules[0].items.map((entry) => entry.id)).toContain(
+      "draft-assignment",
+    );
+
+    const malformedPublished = {
+      ...source,
+      items: [
+        {
+          ...source.items[0],
+          type: "assignment" as const,
+          content: scheduledDraft.content,
+          state: "published" as const,
+        },
+        source.items[1],
+      ],
+    };
+    expect(validateCourseModel(malformedPublished)).toContain(
+      "item notice: assessment drafts cannot be published",
+    );
+
+    const legacyPublished = {
+      ...source,
+      items: [
+        {
+          ...source.items[0],
+          type: "quiz" as const,
+          state: "published" as const,
+          content: undefined,
+        },
+        source.items[1],
+      ],
+    };
+    expect(validateCourseModel(legacyPublished)).toContain(
+      "item notice: assessment drafts cannot be published",
+    );
+    expect(() => projectCourse(legacyPublished, "student", { now })).toThrow(
+      /assessment drafts cannot be published/,
+    );
   });
 
   it("gates release by schedule and completion by the declared rule", () => {
