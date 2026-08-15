@@ -255,7 +255,11 @@ function courseMembershipsForActor(
       membership.organizationId === actor.organizationId &&
       membership.principalId === actor.principalId &&
       membership.status === "active" &&
-      (membership.courseId === courseId || membership.courseId === null),
+      (membership.courseId === courseId ||
+        (membership.courseId === null &&
+          ["platform-owner", "organization-administrator"].includes(
+            membership.role,
+          ))),
   );
 }
 

@@ -21,6 +21,21 @@ function roleLabel(role: CoursePersonProjection["role"]): string {
   }
 }
 
+function membershipPresentation(
+  status: CoursePersonProjection["membershipStatus"],
+): { label: string; className: string } {
+  switch (status) {
+    case "active":
+      return { label: "Active", className: "published" };
+    case "invited":
+      return { label: "Pending activation", className: "draft" };
+    case "suspended":
+      return { label: "Suspended", className: "scheduled" };
+    case "ended":
+      return { label: "Ended", className: "hidden" };
+  }
+}
+
 export function CoursePeople({
   role,
   projection,
@@ -265,13 +280,9 @@ export function CoursePeople({
               </div>
               <span>{roleLabel(person.role)}</span>
               <span
-                className={`state-pill ${
-                  person.membershipStatus === "active" ? "published" : "draft"
-                }`}
+                className={`state-pill ${membershipPresentation(person.membershipStatus).className}`}
               >
-                {person.membershipStatus === "active"
-                  ? "Active"
-                  : "Pending activation"}
+                {membershipPresentation(person.membershipStatus).label}
               </span>
             </article>
           ))}

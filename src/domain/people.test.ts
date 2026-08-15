@@ -7,6 +7,7 @@ import {
   createPersonProfile,
   loadPeopleSnapshot,
   projectCoursePeople,
+  type AddCoursePersonInput,
   type PeopleSnapshot,
 } from "./people";
 import {
@@ -192,6 +193,28 @@ describe("course people domain", () => {
         status: "invited",
       }),
     );
+
+    const assistantResult = addCoursePerson(
+      buildPeople(),
+      buildWorkspace(),
+      teacher,
+      {
+        profileId: "assistant-1",
+        membershipId: "membership-assistant-1-course",
+        courseId: "econ-10a",
+        displayName: "Rina Das",
+        role: "teaching-assistant",
+        now,
+      },
+    );
+    expect(assistantResult.workspace.workspace.memberships).toContainEqual(
+      expect.objectContaining({
+        principalId: "assistant-1",
+        courseId: "econ-10a",
+        role: "teaching-assistant",
+        status: "invited",
+      }),
+    );
   });
 
   it("does not let a student add or inspect another course member", () => {
@@ -204,6 +227,55 @@ describe("course people domain", () => {
         role: "student",
         now,
       }),
+    ).toThrow(/not authorised/);
+  });
+
+  it("does not treat an unassigned organization teacher as course-roster access", () => {
+    const unassignedTeacher: WorkspaceActor = {
+      principalId: "teacher-2",
+      organizationId,
+    };
+    const workspace = addWorkspaceMembership(
+      buildWorkspace(),
+      owner,
+      membership(
+        "membership-teacher-2-org",
+        unassignedTeacher.principalId,
+        "teacher",
+        null,
+      ),
+      now,
+    );
+
+    expect(() =>
+      projectCoursePeople(
+        buildPeople(),
+        workspace,
+        unassignedTeacher,
+        "econ-10a",
+      ),
+    ).toThrow(/not authorised/);
+    expect(() =>
+      addCoursePerson(buildPeople(), workspace, unassignedTeacher, {
+        profileId: "student-2",
+        membershipId: "membership-student-2-course",
+        courseId: "econ-10a",
+        displayName: "Jordan Lee",
+        role: "student",
+        now,
+      }),
+    ).toThrow(/not authorised/);
+
+    const elevatedRole = {
+      profileId: "teacher-3",
+      membershipId: "membership-teacher-3-course",
+      courseId: "econ-10a",
+      displayName: "Elevated Teacher",
+      role: "teacher",
+      now,
+    } as unknown as AddCoursePersonInput;
+    expect(() =>
+      addCoursePerson(buildPeople(), workspace, teacher, elevatedRole),
     ).toThrow(/not authorised/);
   });
 
