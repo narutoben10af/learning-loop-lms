@@ -82,6 +82,21 @@ import {
   type WorkspaceCourseSummary,
 } from "./WorkspaceDashboard";
 import { CoursePeople } from "./CoursePeople";
+import {
+  ANNOUNCEMENTS_STORAGE_KEY,
+  addAnnouncementDraft,
+  archiveAnnouncement,
+  createAnnouncementRecord,
+  createAnnouncementSnapshot,
+  loadAnnouncementSnapshot,
+  projectCourseAnnouncements,
+  releaseAnnouncement,
+  reviseAnnouncement,
+  saveAnnouncementSnapshot,
+  type AnnouncementAudience,
+  type AnnouncementSnapshot,
+} from "./domain/announcements";
+import { CourseAnnouncements } from "./CourseAnnouncements";
 
 const predictionOptions: Array<{ value: Prediction; label: string }> = [
   { value: "price-down-quantity-up", label: "Price falls and quantity rises" },
@@ -376,6 +391,30 @@ function buildPilotPeopleSnapshot(): PeopleSnapshot {
 }
 
 const pilotPeopleSnapshot = buildPilotPeopleSnapshot();
+
+function buildPilotAnnouncementSnapshot(): AnnouncementSnapshot {
+  return createAnnouncementSnapshot(
+    DEMO_ORGANIZATION_ID,
+    ownerActor.principalId,
+    DEMO_NOW,
+    [
+      createAnnouncementRecord({
+        id: "welcome-market-signals",
+        organizationId: DEMO_ORGANIZATION_ID,
+        courseId: pilotCourseModel.course.id,
+        title: "Welcome to Market Signals",
+        body: "Start with the graph-reading page, then use the supply and demand explorer to explain how equilibrium changes.",
+        audience: "all-course-members",
+        state: "published",
+        releaseAt: DEMO_NOW,
+        actorId: teacherActor.principalId,
+        now: DEMO_NOW,
+      }),
+    ],
+  );
+}
+
+const pilotAnnouncementSnapshot = buildPilotAnnouncementSnapshot();
 
 function loadAppWorkspace(storage: Storage): WorkspaceSnapshot {
   const loaded = loadWorkspaceSnapshot(storage, {
@@ -2784,6 +2823,10 @@ export function App() {
   const [peopleSnapshot, setPeopleSnapshot] = useState<PeopleSnapshot>(() =>
     loadPeopleSnapshot(window.localStorage, pilotPeopleSnapshot),
   );
+  const [announcementSnapshot, setAnnouncementSnapshot] =
+    useState<AnnouncementSnapshot>(() =>
+      loadAnnouncementSnapshot(window.localStorage, pilotAnnouncementSnapshot),
+    );
   const [selectedCourseId, setSelectedCourseId] = useState(
     pilotCourseModel.course.id,
   );
@@ -2806,6 +2849,9 @@ export function App() {
   useEffect(() => {
     savePeopleSnapshot(window.localStorage, peopleSnapshot);
   }, [peopleSnapshot]);
+  useEffect(() => {
+    saveAnnouncementSnapshot(window.localStorage, announcementSnapshot);
+  }, [announcementSnapshot]);
   useEffect(() => {
     const onPopState = (event: PopStateEvent) => {
       const route = normalizeHistoryState(event.state);
@@ -2959,6 +3005,24 @@ export function App() {
         workspaceSnapshot,
         studentActor,
         selectedCourseId,
+      )
+    : null;
+  const teacherAnnouncementProjection = teacherSelectedCatalogueCourse
+    ? projectCourseAnnouncements(
+        announcementSnapshot,
+        workspaceSnapshot,
+        teacherActor,
+        selectedCourseId,
+        new Date().toISOString(),
+      )
+    : null;
+  const studentAnnouncementProjection = studentSelectedCatalogueCourse
+    ? projectCourseAnnouncements(
+        announcementSnapshot,
+        workspaceSnapshot,
+        studentActor,
+        selectedCourseId,
+        new Date().toISOString(),
       )
     : null;
   const completedItemIds = new Set(
@@ -3189,6 +3253,117 @@ export function App() {
     }
   };
 
+  const announcementMutationTime = () =>
+    new Date(
+      Math.max(
+        Date.now(),
+        Date.parse(announcementSnapshot.audit.updatedAt),
+        Date.parse(workspaceSnapshot.workspace.audit.updatedAt),
+      ),
+    ).toISOString();
+
+  const saveSelectedCourseAnnouncement = (input: {
+    id?: string;
+    title: string;
+    body: string;
+    audience: AnnouncementAudience;
+  }): string | null => {
+    if (!input.title.trim() || !input.body.trim()) {
+      return "Add a title and message before saving the draft.";
+    }
+    const now = announcementMutationTime();
+    try {
+      if (input.id) {
+        setAnnouncementSnapshot(
+          reviseAnnouncement(
+            announcementSnapshot,
+            workspaceSnapshot,
+            teacherActor,
+            { ...input, id: input.id, now },
+          ),
+        );
+      } else {
+        let sequence = announcementSnapshot.announcements.length + 1;
+        let id = `announcement-${sequence}`;
+        while (
+          announcementSnapshot.announcements.some((item) => item.id === id)
+        ) {
+          sequence += 1;
+          id = `announcement-${sequence}`;
+        }
+        setAnnouncementSnapshot(
+          addAnnouncementDraft(
+            announcementSnapshot,
+            workspaceSnapshot,
+            teacherActor,
+            {
+              id,
+              courseId: selectedCourseId,
+              title: input.title,
+              body: input.body,
+              audience: input.audience,
+              now,
+            },
+          ),
+        );
+      }
+      return null;
+    } catch (error) {
+      return error instanceof Error
+        ? error.message
+        : "The announcement could not be saved.";
+    }
+  };
+
+  const releaseSelectedCourseAnnouncement = (
+    id: string,
+    releaseState: "published" | "scheduled",
+    releaseAt?: string,
+  ): string | null => {
+    try {
+      const parsedReleaseAt = releaseAt
+        ? new Date(releaseAt).toISOString()
+        : undefined;
+      setAnnouncementSnapshot(
+        releaseAnnouncement(
+          announcementSnapshot,
+          workspaceSnapshot,
+          teacherActor,
+          {
+            id,
+            state: releaseState,
+            releaseAt: parsedReleaseAt,
+            now: announcementMutationTime(),
+          },
+        ),
+      );
+      return null;
+    } catch (error) {
+      return error instanceof Error
+        ? error.message
+        : "The announcement could not be released.";
+    }
+  };
+
+  const archiveSelectedCourseAnnouncement = (id: string): string | null => {
+    try {
+      setAnnouncementSnapshot(
+        archiveAnnouncement(
+          announcementSnapshot,
+          workspaceSnapshot,
+          teacherActor,
+          id,
+          announcementMutationTime(),
+        ),
+      );
+      return null;
+    } catch (error) {
+      return error instanceof Error
+        ? error.message
+        : "The announcement could not be archived.";
+    }
+  };
+
   return (
     <>
       <PreviewHeader screen={screen} setScreen={setScreen} />
@@ -3279,6 +3454,12 @@ export function App() {
                 role="student"
                 projection={studentPeopleProjection}
               />
+            ) : courseDestination === "announcements" &&
+              studentAnnouncementProjection ? (
+              <CourseAnnouncements
+                role="student"
+                projection={studentAnnouncementProjection}
+              />
             ) : (
               <CourseDestinationPlaceholder
                 destination={
@@ -3328,6 +3509,15 @@ export function App() {
                 role="teacher"
                 projection={teacherPeopleProjection}
                 onAddPerson={addPersonToSelectedCourse}
+              />
+            ) : courseDestination === "announcements" &&
+              teacherAnnouncementProjection ? (
+              <CourseAnnouncements
+                role="teacher"
+                projection={teacherAnnouncementProjection}
+                onSave={saveSelectedCourseAnnouncement}
+                onRelease={releaseSelectedCourseAnnouncement}
+                onArchive={archiveSelectedCourseAnnouncement}
               />
             ) : (
               <CourseDestinationPlaceholder
@@ -3415,6 +3605,12 @@ export function App() {
                 role="student"
                 projection={studentPeopleProjection}
               />
+            ) : courseDestination === "announcements" &&
+              studentAnnouncementProjection ? (
+              <CourseAnnouncements
+                role="student"
+                projection={studentAnnouncementProjection}
+              />
             ) : (
               <CourseDestinationPlaceholder
                 destination={
@@ -3469,8 +3665,10 @@ export function App() {
             window.localStorage.removeItem(WORKSPACE_STORAGE_KEY);
             window.localStorage.removeItem(COURSE_STORAGE_KEY);
             window.localStorage.removeItem(PEOPLE_STORAGE_KEY);
+            window.localStorage.removeItem(ANNOUNCEMENTS_STORAGE_KEY);
             setWorkspaceSnapshot(structuredClone(pilotWorkspaceSnapshot));
             setPeopleSnapshot(structuredClone(pilotPeopleSnapshot));
+            setAnnouncementSnapshot(structuredClone(pilotAnnouncementSnapshot));
             setSelectedCourseId(pilotCourseModel.course.id);
             setComposerDrafts({});
             window.history.replaceState(

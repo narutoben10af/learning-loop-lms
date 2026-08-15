@@ -6,6 +6,8 @@ The current repository uses original synthetic Economics content, fictional lear
 
 The People prototype stores only fictional display names, profile IDs, course roles, membership lifecycle, and audit metadata in a separately versioned local snapshot. Teachers may create a pending local roster record without email or phone, but this does not create an account, send an invitation, or issue a production activation code. Student projection returns only the signed-in demo learner's own profile; it never exposes the teacher roster.
 
+The Announcements prototype stores original/synthetic notice text, explicit course and audience scope, release lifecycle, and audit metadata in a separately versioned local snapshot. Student projection excludes drafts, archived notices, staff-only notices, and future scheduled notices. The prototype sends no email, push notification, or external message and collects no recipient contact details.
+
 Browser-selected image/file bytes remain on the device in the immediate course-shell milestone. The demo may retain allowlisted metadata and show an ephemeral same-session preview, but it must not claim that a file is uploaded, shared, backed up, or available to another device. Local paths, handles, object URLs, raw bytes, and unknown metadata never enter student projections or persistent local JSON.
 
 ## Pilot minimum
