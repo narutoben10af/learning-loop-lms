@@ -53,11 +53,17 @@ import {
   saveWorkspaceSnapshot,
   transitionWorkspaceCourse,
   type WorkspaceActor,
+  type WorkspaceCourseProjection,
   type WorkspaceMembership,
   type WorkspaceSnapshot,
 } from "./domain/workspace";
 import { EconomicsGraph } from "./graph/EconomicsGraph";
 import { ebikeMarketScenario } from "./graph/scenarios";
+import { CourseWorkspaceShell } from "./CourseWorkspaceShell";
+import {
+  courseDestinationLabel,
+  type CourseDestination,
+} from "./courseNavigation";
 import {
   WorkspaceDashboard,
   type CreateCourseDraft,
@@ -377,8 +383,12 @@ type DemoScreen =
   | "student-dashboard"
   | "student-course"
   | "student-activity"
+  | "student-course-placeholder"
+  | "teacher-course-home"
+  | "teacher-course-placeholder"
   | "teacher-student-preview"
   | "teacher-student-preview-activity"
+  | "teacher-student-preview-placeholder"
   | "teacher-composer"
   | "teacher-evidence";
 
@@ -858,6 +868,281 @@ function ReflectionCard({ state, dispatch }: ActivityProps) {
   );
 }
 
+function TeacherCourseHome({
+  course,
+  catalogueCourse,
+  state,
+  onOpenModules,
+  onPreview,
+  onOpenEvidence,
+}: {
+  course: CourseModel;
+  catalogueCourse: WorkspaceCourseProjection;
+  state: ActivityState;
+  onOpenModules: () => void;
+  onPreview: () => void;
+  onOpenEvidence: () => void;
+}) {
+  const publishedItems = course.items.filter(
+    (item) => item.state === "published",
+  ).length;
+  const preparingItems = course.items.filter((item) =>
+    ["draft", "scheduled", "hidden"].includes(item.state),
+  ).length;
+  const isPilot = course.course.id === pilotCourseModel.course.id;
+  return (
+    <main id="main-content" className="page-shell teacher-course-home">
+      <section className="teacher-course-hero">
+        <div>
+          <p className="eyebrow">Course home · {catalogueCourse.code}</p>
+          <h1>{course.course.title}</h1>
+          <p className="hero-copy">
+            Plan the next learner action, check release risk, and move directly
+            into authoring or evidence without searching through course admin.
+          </p>
+        </div>
+        <div className="teacher-course-primary-actions">
+          <button
+            className="button primary"
+            type="button"
+            onClick={onOpenModules}
+          >
+            Open Module Composer
+          </button>
+          <button className="button quiet" type="button" onClick={onPreview}>
+            Preview as student
+          </button>
+        </div>
+      </section>
+
+      <section
+        className="course-action-callout"
+        aria-labelledby="next-action-title"
+      >
+        <div>
+          <p className="eyebrow">Next teaching action</p>
+          <h2 id="next-action-title">
+            {course.course.status === "draft"
+              ? "Shape the first learning path"
+              : state.submitted
+                ? "Review submitted reasoning"
+                : "Prepare the next release"}
+          </h2>
+          <p>
+            {course.course.status === "draft"
+              ? "This course is private. Add and review learner-facing content before activation."
+              : state.submitted
+                ? "The Economics activity has evidence ready for a named human review."
+                : "The current module is live; check draft and scheduled items before the next lesson."}
+          </p>
+        </div>
+        <button
+          className="button primary"
+          type="button"
+          onClick={state.submitted && isPilot ? onOpenEvidence : onOpenModules}
+        >
+          {state.submitted && isPilot
+            ? "Open marking evidence"
+            : "Review learning path"}
+        </button>
+      </section>
+
+      <section className="teacher-course-signals" aria-label="Course readiness">
+        <article>
+          <span>Learning path</span>
+          <strong>{course.modules.length} modules</strong>
+          <small>Ordered and accessibly moveable</small>
+        </article>
+        <article>
+          <span>Learner-ready</span>
+          <strong>{publishedItems} items</strong>
+          <small>Published content only</small>
+        </article>
+        <article>
+          <span>In preparation</span>
+          <strong>{preparingItems} items</strong>
+          <small>Draft, scheduled, or hidden</small>
+        </article>
+        <article>
+          <span>Evidence</span>
+          <strong>
+            {state.submitted && isPilot ? "Ready" : "No new review"}
+          </strong>
+          <small>Synthetic pilot signal</small>
+        </article>
+      </section>
+
+      <div className="teacher-course-home-grid">
+        <section
+          className="course-path-preview"
+          aria-labelledby="course-path-title"
+        >
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">Learning sequence</p>
+              <h2 id="course-path-title">Modules at a glance</h2>
+            </div>
+            <button
+              className="button quiet"
+              type="button"
+              onClick={onOpenModules}
+            >
+              Manage modules
+            </button>
+          </div>
+          <ol>
+            {course.modules.map((module, index) => {
+              const itemCount = course.items.filter(
+                (item) => item.moduleId === module.id,
+              ).length;
+              return (
+                <li key={module.id}>
+                  <span>{String(index + 1).padStart(2, "0")}</span>
+                  <div>
+                    <strong>{module.title}</strong>
+                    <small>
+                      {itemCount} item{itemCount === 1 ? "" : "s"} ·{" "}
+                      {releaseLabel(module.state)}
+                    </small>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+        <aside className="course-release-panel" aria-labelledby="release-title">
+          <p className="eyebrow">Release clarity</p>
+          <h2 id="release-title">Before learners see it</h2>
+          <ul>
+            <li>Student preview is a separate author/QA surface.</li>
+            <li>Draft and hidden content stays out of student projections.</li>
+            <li>Assessment drafts cannot create phantom grade columns.</li>
+          </ul>
+          <button className="button quiet" type="button" onClick={onPreview}>
+            Open student preview
+          </button>
+        </aside>
+      </div>
+    </main>
+  );
+}
+
+const placeholderDetails: Record<
+  Exclude<CourseDestination, "home" | "modules">,
+  { summary: string; next: string }
+> = {
+  announcements: {
+    summary:
+      "Course announcements will have explicit draft, audience, schedule, publish, edit, and archive states.",
+    next: "The next focused delivery adds a real local announcement feed and authoring flow.",
+  },
+  assignments: {
+    summary:
+      "Assignments will use one canonical assessment identity, deliberate release, attempts, parts, and a clear marking handoff.",
+    next: "Draft assignment records can already be created inside Modules; the assessment builder is a later focused slice.",
+  },
+  quizzes: {
+    summary:
+      "Quizzes will share a validated question and attempt engine without duplicate or temporary Gradebook columns.",
+    next: "Draft quiz records can already be created inside Modules; live attempts are intentionally unavailable.",
+  },
+  grades: {
+    summary:
+      "Grades will connect one canonical assessment to attempts, rubric evidence, feedback status, and an auditable release decision.",
+    next: "The Economics pilot has a real human evidence review; a full course Gradebook is a later focused slice.",
+  },
+  people: {
+    summary:
+      "People will show course-scoped membership and roles without open registration or requiring student email addresses.",
+    next: "The next roster slice uses fictional local identities before any production enrolment work.",
+  },
+  pages: {
+    summary:
+      "Pages are learner-facing explanations that belong in the learning path, with versioned editing and controlled release.",
+    next: "Pages can already be authored and published inside Modules; a searchable page library comes later.",
+  },
+  files: {
+    summary:
+      "Files will use a replaceable storage adapter with ownership, status, access scope, and audit metadata.",
+    next: "The next media slice adds a local-demo library; no browser-selected bytes are uploaded or durably shared today.",
+  },
+  discussions: {
+    summary:
+      "Discussions will separate prompts, audience, moderation, schedule, and notification intent.",
+    next: "No live discussion posts or student communication are collected in this public prototype.",
+  },
+  calendar: {
+    summary:
+      "Calendar will unify course availability, due dates, lesson sessions, and undated work through a permissioned scheduling boundary.",
+    next: "Current module availability remains the source; no external calendar is connected.",
+  },
+  settings: {
+    summary:
+      "Settings will separate course identity, lifecycle, access, feature flags, navigation, and integration permissions.",
+    next: "LTI, storage, SSO, calendar, notifications, analytics, AI, and MCP remain audited replaceable adapters with no live keys or data exchange.",
+  },
+};
+
+function CourseDestinationPlaceholder({
+  destination,
+  role,
+  onOpenModules,
+  onReturnHome,
+}: {
+  destination: Exclude<CourseDestination, "home" | "modules">;
+  role: "teacher" | "student";
+  onOpenModules: () => void;
+  onReturnHome: () => void;
+}) {
+  const detail = placeholderDetails[destination];
+  const canAuthorInModules =
+    role === "teacher" &&
+    ["assignments", "quizzes", "pages", "files", "discussions"].includes(
+      destination,
+    );
+  return (
+    <main id="main-content" className="page-shell course-placeholder-shell">
+      <section className="course-placeholder-card">
+        <div>
+          <span className="state-pill scheduled course-placeholder-status">
+            Planned · not available yet
+          </span>
+          <p className="eyebrow">Course operation</p>
+          <h1>{courseDestinationLabel(destination)}</h1>
+          <p className="hero-copy">{detail.summary}</p>
+        </div>
+        <div className="course-placeholder-next">
+          <strong>What works now</strong>
+          <p>{detail.next}</p>
+          <div className="course-placeholder-actions">
+            {canAuthorInModules && (
+              <button
+                className="button primary"
+                type="button"
+                onClick={onOpenModules}
+              >
+                Author in Modules
+              </button>
+            )}
+            <button
+              className="button quiet"
+              type="button"
+              onClick={onReturnHome}
+            >
+              Return to course home
+            </button>
+          </div>
+        </div>
+      </section>
+      <p className="privacy-note">
+        This space is deliberately honest about prototype scope. No third-party
+        service, file store, production identity, or real student data is
+        connected.
+      </p>
+    </main>
+  );
+}
+
 function StudentCourseHome({
   projection,
   state,
@@ -886,19 +1171,6 @@ function StudentCourseHome({
   const isEconomicsPilot = projection.course.id === pilotCourseModel.course.id;
   return (
     <main id="main-content" className="page-shell course-home-shell">
-      <nav className="course-nav" aria-label="Student course navigation">
-        <span className="course-nav-title">{projection.course.title}</span>
-        <span className="course-nav-links">
-          <span className="course-nav-current" aria-current="page">
-            Course home
-          </span>
-          {isEconomicsPilot && (
-            <button type="button" onClick={onOpenActivity}>
-              Open activity
-            </button>
-          )}
-        </span>
-      </nav>
       <section className="course-hero">
         <div>
           <p className="eyebrow">
@@ -913,17 +1185,28 @@ function StudentCourseHome({
                 : "Your teacher has arranged the available learning in one clear path."}
           </p>
         </div>
-        <aside
-          className="course-progress-card"
-          aria-label="Private course progress"
-        >
-          <span>Private mastery progress</span>
-          <strong>{state.submitted ? "1 of 3" : "In progress"}</strong>
-          <div className="progress-track" aria-hidden="true">
-            <span style={{ width: `${Math.max(20, progress * 20)}%` }} />
-          </div>
-          <small>Evidence, not time spent or a public ranking.</small>
-        </aside>
+        <div className="student-course-next">
+          <aside
+            className="course-progress-card"
+            aria-label="Private course progress"
+          >
+            <span>Private mastery progress</span>
+            <strong>{state.submitted ? "1 of 3" : "In progress"}</strong>
+            <div className="progress-track" aria-hidden="true">
+              <span style={{ width: `${Math.max(20, progress * 20)}%` }} />
+            </div>
+            <small>Evidence, not time spent or a public ranking.</small>
+          </aside>
+          {isEconomicsPilot && (
+            <button
+              className="button primary"
+              type="button"
+              onClick={onOpenActivity}
+            >
+              Open activity
+            </button>
+          )}
+        </div>
       </section>
       <section className="course-overview" aria-label="Course overview">
         <div>
@@ -958,7 +1241,9 @@ function StudentCourseHome({
         <div className="section-heading">
           <div>
             <p className="eyebrow">Course map</p>
-            <h2 id="modules-title">Modules</h2>
+            <h2 id="modules-title" tabIndex={-1}>
+              Modules
+            </h2>
           </div>
           <span className="section-note">Your teacher controls release</span>
         </div>
@@ -1020,10 +1305,13 @@ function StudentCourseHome({
                         </span>
                         <span className="module-item-copy">
                           <strong>{item.title}</strong>
-                          <small>{itemTypeLabel(item.type)}</small>
+                          <small>{itemAuthoringCapabilityLabel(item)}</small>
                           <span className="module-item-detail">
                             {contentDetail}
                           </span>
+                          {item.id === PREBUILT_INTERACTIVE_ITEM_ID && (
+                            <PrebuiltInteractiveDisclosure audience="student" />
+                          )}
                         </span>
                         <span
                           className={
@@ -1106,10 +1394,11 @@ function StudentActivity({
         </div>
         <div className="hero-meta">
           <span>8 min</span>
-          <span>Original practice</span>
+          <span>Configurable interactive template</span>
           <span>Saved locally</span>
         </div>
       </section>
+      <PrebuiltInteractiveDisclosure audience="student" />
       <StepProgress state={state} />
       <section
         className="lesson-card notice-card"
@@ -1171,6 +1460,45 @@ function itemTypeLabel(type: ModuleItemType): string {
   return type === "learning-block"
     ? "Learning block"
     : type.charAt(0).toUpperCase() + type.slice(1);
+}
+
+const PREBUILT_INTERACTIVE_ITEM_ID = "supply-shock-activity";
+
+function itemAuthoringCapabilityLabel(
+  item: Pick<ModuleItem, "id" | "type">,
+): string {
+  if (item.id === PREBUILT_INTERACTIVE_ITEM_ID) {
+    return "Configurable interactive template";
+  }
+  if (item.type === "resource" || item.type === "video") {
+    return "Imported/embed resource";
+  }
+  return "Rich content";
+}
+
+function PrebuiltInteractiveDisclosure({
+  audience,
+}: {
+  audience: "student" | "teacher";
+}) {
+  return (
+    <aside className={`interactive-template-notice ${audience}`}>
+      <span className="interactive-template-kind">Prebuilt pilot scenario</span>
+      <strong>Supply and demand explorer</strong>
+      <p>
+        Interactive configuration is a planned template-builder capability; this
+        pilot scenario is predefined.
+      </p>
+      {audience === "teacher" && (
+        <small>
+          You can edit this item’s title and supporting text here. Curve rules,
+          feedback, ranges, and accessible alternatives stay with the validated
+          supply-and-demand pilot template for now. Changing the graph family or
+          curve configuration is not available in this pilot.
+        </small>
+      )}
+    </aside>
+  );
 }
 
 function itemContentSummary(item: ModuleItem): string {
@@ -1481,13 +1809,13 @@ function ItemEditor({
 function TeacherComposer({
   course,
   setCourse,
-  setScreen,
+  onPreview,
   itemDrafts,
   setItemDrafts,
 }: {
   course: CourseModel;
   setCourse: Dispatch<SetStateAction<CourseModel>>;
-  setScreen: (screen: DemoScreen) => void;
+  onPreview: () => void;
   itemDrafts: Record<string, ItemDraft>;
   setItemDrafts: Dispatch<SetStateAction<Record<string, ItemDraft>>>;
 }) {
@@ -1693,25 +2021,6 @@ function TeacherComposer({
 
   return (
     <main id="main-content" className="page-shell composer-shell">
-      <nav
-        className="course-nav teacher-nav"
-        aria-label="Teacher course navigation"
-      >
-        <button type="button" onClick={() => setScreen("teacher-dashboard")}>
-          ← My workspace
-        </button>
-        <span className="course-nav-links">
-          <span className="course-nav-title">{course.course.title}</span>
-          <span className="course-nav-current" aria-current="page">
-            Module Composer
-          </span>
-          {course.course.id === pilotCourseModel.course.id && (
-            <button type="button" onClick={() => setScreen("teacher-evidence")}>
-              Evidence &amp; marking
-            </button>
-          )}
-        </span>
-      </nav>
       <section className="composer-hero">
         <div>
           <p className="eyebrow">Teacher controls · Course authoring</p>
@@ -1723,11 +2032,7 @@ function TeacherComposer({
           </p>
         </div>
         <div className="composer-hero-actions">
-          <button
-            className="button primary"
-            type="button"
-            onClick={() => setScreen("teacher-student-preview")}
-          >
+          <button className="button primary" type="button" onClick={onPreview}>
             Preview as student
           </button>
           <span className="demo-boundary">
@@ -1898,7 +2203,7 @@ function TeacherComposer({
                 <div className="composer-item-main">
                   <div className="composer-item-heading">
                     <span className="item-type-label">
-                      {item.type.replace("-", " ")}
+                      {itemAuthoringCapabilityLabel(item)}
                     </span>
                     <span className={`state-pill ${item.state}`}>
                       {releaseLabel(item.state)}
@@ -1908,6 +2213,9 @@ function TeacherComposer({
                   <p className="composer-item-summary">
                     {itemContentSummary(item)}
                   </p>
+                  {item.id === PREBUILT_INTERACTIVE_ITEM_ID && (
+                    <PrebuiltInteractiveDisclosure audience="teacher" />
+                  )}
                   <details>
                     <summary>Availability &amp; prerequisites</summary>
                     <p>
@@ -2026,11 +2334,7 @@ function TeacherComposer({
   );
 }
 
-function TeacherEvidence({
-  state,
-  dispatch,
-  setScreen,
-}: ActivityProps & { setScreen: (screen: DemoScreen) => void }) {
+function TeacherEvidence({ state, dispatch }: ActivityProps) {
   const [filter, setFilter] = useState<
     "all" | "attention" | "review" | "not-started"
   >("all");
@@ -2068,22 +2372,6 @@ function TeacherEvidence({
       : `${state.firstCheckedCurve === "demand" ? "Demand" : "Supply"} ${state.firstCheckedShift === 1 ? "right" : state.firstCheckedShift === -1 ? "left" : "unchanged"}`;
   return (
     <main id="main-content" className="page-shell teacher-shell">
-      <nav
-        className="course-nav teacher-nav"
-        aria-label="Teacher course navigation"
-      >
-        <span className="course-nav-title">
-          Teacher workspace · Economics 10A
-        </span>
-        <span className="course-nav-links">
-          <button type="button" onClick={() => setScreen("teacher-composer")}>
-            Module Composer
-          </button>
-          <span className="course-nav-current" aria-current="page">
-            Evidence &amp; marking
-          </span>
-        </span>
-      </nav>
       <section className="hero teacher-hero">
         <div>
           <p className="eyebrow">Teacher evidence · Economics 10A</p>
@@ -2345,6 +2633,8 @@ export function App() {
   const [selectedCourseId, setSelectedCourseId] = useState(
     pilotCourseModel.course.id,
   );
+  const [courseDestination, setCourseDestination] =
+    useState<CourseDestination>("home");
   const [composerDrafts, setComposerDrafts] = useState<
     Record<string, ItemDraft>
   >({});
@@ -2371,6 +2661,8 @@ export function App() {
 
   const setScreen = (next: DemoScreen) => {
     window.history.pushState({ learningLoopScreen: next }, "", `#${next}`);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
     setScreenState(next);
   };
 
@@ -2405,6 +2697,12 @@ export function App() {
   const studentProjection = projectWorkspace(
     workspaceSnapshot.workspace,
     studentActor,
+  );
+  const teacherSelectedCatalogueCourse = teacherProjection.courses.find(
+    (course) => course.id === selectedCourseId,
+  );
+  const studentSelectedCatalogueCourse = studentProjection.courses.find(
+    (course) => course.id === selectedCourseId,
   );
   const completedItemIds = new Set(
     state.submitted ? ["welcome", "supply-shock-activity"] : ["welcome"],
@@ -2480,14 +2778,62 @@ export function App() {
 
   const openTeacherCourse = (courseId: string) => {
     setSelectedCourseId(courseId);
-    setScreen("teacher-composer");
+    setCourseDestination("home");
+    setScreen("teacher-course-home");
   };
   const openStudentCourse = (courseId: string) => {
     if (!studentProjection.courses.some((course) => course.id === courseId)) {
       return;
     }
     setSelectedCourseId(courseId);
+    setCourseDestination("home");
     setScreen("student-course");
+  };
+
+  const navigateTeacherCourse = (destination: CourseDestination) => {
+    setCourseDestination(destination);
+    if (destination === "home") {
+      setScreen("teacher-course-home");
+    } else if (destination === "modules") {
+      setScreen("teacher-composer");
+    } else if (
+      destination === "grades" &&
+      selectedCourse.course.id === pilotCourseModel.course.id
+    ) {
+      setScreen("teacher-evidence");
+    } else {
+      setScreen("teacher-course-placeholder");
+    }
+  };
+
+  const navigateStudentCourse = (destination: CourseDestination) => {
+    setCourseDestination(destination);
+    if (destination === "home" || destination === "modules") {
+      setScreen("student-course");
+      if (destination === "modules") {
+        window.requestAnimationFrame(() => {
+          document.getElementById("modules-title")?.focus();
+          document.getElementById("modules-title")?.scrollIntoView();
+        });
+      }
+    } else {
+      setScreen("student-course-placeholder");
+    }
+  };
+
+  const navigateTeacherStudentPreview = (destination: CourseDestination) => {
+    setCourseDestination(destination);
+    if (destination === "home" || destination === "modules") {
+      setScreen("teacher-student-preview");
+      if (destination === "modules") {
+        window.requestAnimationFrame(() => {
+          document.getElementById("modules-title")?.focus();
+          document.getElementById("modules-title")?.scrollIntoView();
+        });
+      }
+    } else {
+      setScreen("teacher-student-preview-placeholder");
+    }
   };
   const createWorkspaceCourse = (draft: CreateCourseDraft): string | null => {
     const title = draft.title.trim();
@@ -2549,7 +2895,8 @@ export function App() {
       );
       setWorkspaceSnapshot(next);
       setSelectedCourseId(id);
-      setScreen("teacher-composer");
+      setCourseDestination("home");
+      setScreen("teacher-course-home");
       return null;
     } catch (error) {
       return error instanceof Error ? error.message : "Course creation failed.";
@@ -2559,7 +2906,17 @@ export function App() {
   return (
     <>
       <PreviewHeader screen={screen} setScreen={setScreen} />
-      {screen === "teacher-dashboard" && (
+      {(screen === "teacher-dashboard" ||
+        ([
+          "teacher-course-home",
+          "teacher-course-placeholder",
+          "teacher-composer",
+          "teacher-evidence",
+          "teacher-student-preview",
+          "teacher-student-preview-activity",
+          "teacher-student-preview-placeholder",
+        ].includes(screen) &&
+          !teacherSelectedCatalogueCourse)) && (
         <WorkspaceDashboard
           role="teacher"
           projection={teacherProjection}
@@ -2570,7 +2927,11 @@ export function App() {
         />
       )}
       {(screen === "student-dashboard" ||
-        ((screen === "student-course" || screen === "student-activity") &&
+        ([
+          "student-course",
+          "student-activity",
+          "student-course-placeholder",
+        ].includes(screen) &&
           !studentSelectedCourseProjection)) && (
         <WorkspaceDashboard
           role="student"
@@ -2581,67 +2942,209 @@ export function App() {
           onCreateCourse={() => "Students cannot create courses."}
         />
       )}
-      {screen === "student-course" && studentSelectedCourseProjection && (
-        <StudentCourseHome
-          projection={studentSelectedCourseProjection}
-          state={state}
-          onOpenActivity={() => setScreen("student-activity")}
-        />
-      )}
-      {screen === "student-activity" && studentSelectedCourseProjection && (
-        <StudentActivity
-          state={state}
-          dispatch={dispatch}
-          onBack={() => setScreen("student-course")}
-        />
-      )}
-      {screen === "teacher-student-preview" &&
-        (teacherStudentPreviewProjection ? (
-          <StudentCourseHome
-            projection={teacherStudentPreviewProjection}
+      {screen === "student-course" &&
+        studentSelectedCourseProjection &&
+        studentSelectedCatalogueCourse && (
+          <CourseWorkspaceShell
+            role="student"
+            course={studentSelectedCatalogueCourse}
+            activeDestination={courseDestination}
+            onNavigate={navigateStudentCourse}
+            onExit={() => setScreen("student-dashboard")}
+          >
+            <StudentCourseHome
+              projection={studentSelectedCourseProjection}
+              state={state}
+              onOpenActivity={() => setScreen("student-activity")}
+            />
+          </CourseWorkspaceShell>
+        )}
+      {screen === "student-activity" &&
+        studentSelectedCourseProjection &&
+        studentSelectedCatalogueCourse && (
+          <CourseWorkspaceShell
+            role="student"
+            course={studentSelectedCatalogueCourse}
+            activeDestination="modules"
+            onNavigate={navigateStudentCourse}
+            onExit={() => setScreen("student-dashboard")}
+          >
+            <StudentActivity
+              state={state}
+              dispatch={dispatch}
+              onBack={() => navigateStudentCourse("modules")}
+            />
+          </CourseWorkspaceShell>
+        )}
+      {screen === "student-course-placeholder" &&
+        studentSelectedCourseProjection &&
+        studentSelectedCatalogueCourse && (
+          <CourseWorkspaceShell
+            role="student"
+            course={studentSelectedCatalogueCourse}
+            activeDestination={courseDestination}
+            onNavigate={navigateStudentCourse}
+            onExit={() => setScreen("student-dashboard")}
+          >
+            <CourseDestinationPlaceholder
+              destination={
+                courseDestination as Exclude<
+                  CourseDestination,
+                  "home" | "modules"
+                >
+              }
+              role="student"
+              onOpenModules={() => navigateStudentCourse("modules")}
+              onReturnHome={() => navigateStudentCourse("home")}
+            />
+          </CourseWorkspaceShell>
+        )}
+      {screen === "teacher-course-home" && teacherSelectedCatalogueCourse && (
+        <CourseWorkspaceShell
+          role="teacher"
+          course={teacherSelectedCatalogueCourse}
+          activeDestination="home"
+          onNavigate={navigateTeacherCourse}
+          onExit={() => setScreen("teacher-dashboard")}
+        >
+          <TeacherCourseHome
+            course={selectedCourse}
+            catalogueCourse={teacherSelectedCatalogueCourse}
             state={state}
-            onOpenActivity={() => setScreen("teacher-student-preview-activity")}
+            onOpenModules={() => navigateTeacherCourse("modules")}
+            onPreview={() => {
+              setCourseDestination("home");
+              setScreen("teacher-student-preview");
+            }}
+            onOpenEvidence={() => navigateTeacherCourse("grades")}
           />
+        </CourseWorkspaceShell>
+      )}
+      {screen === "teacher-course-placeholder" &&
+        teacherSelectedCatalogueCourse && (
+          <CourseWorkspaceShell
+            role="teacher"
+            course={teacherSelectedCatalogueCourse}
+            activeDestination={courseDestination}
+            onNavigate={navigateTeacherCourse}
+            onExit={() => setScreen("teacher-dashboard")}
+          >
+            <CourseDestinationPlaceholder
+              destination={
+                courseDestination as Exclude<
+                  CourseDestination,
+                  "home" | "modules"
+                >
+              }
+              role="teacher"
+              onOpenModules={() => navigateTeacherCourse("modules")}
+              onReturnHome={() => navigateTeacherCourse("home")}
+            />
+          </CourseWorkspaceShell>
+        )}
+      {screen === "teacher-student-preview" &&
+        (teacherStudentPreviewProjection && teacherSelectedCatalogueCourse ? (
+          <CourseWorkspaceShell
+            role="student"
+            course={teacherSelectedCatalogueCourse}
+            activeDestination={courseDestination}
+            onNavigate={navigateTeacherStudentPreview}
+            onExit={() => navigateTeacherCourse("home")}
+          >
+            <StudentCourseHome
+              projection={teacherStudentPreviewProjection}
+              state={state}
+              onOpenActivity={() =>
+                setScreen("teacher-student-preview-activity")
+              }
+            />
+          </CourseWorkspaceShell>
         ) : (
           <TeacherComposer
             course={selectedCourse}
             setCourse={setCourse}
-            setScreen={setScreen}
+            onPreview={() => setScreen("teacher-student-preview")}
             itemDrafts={composerDrafts}
             setItemDrafts={setComposerDrafts}
           />
         ))}
       {screen === "teacher-student-preview-activity" &&
-        (teacherStudentPreviewProjection ? (
-          <StudentActivity
-            state={state}
-            dispatch={dispatch}
-            onBack={() => setScreen("teacher-student-preview")}
-          />
+        (teacherStudentPreviewProjection && teacherSelectedCatalogueCourse ? (
+          <CourseWorkspaceShell
+            role="student"
+            course={teacherSelectedCatalogueCourse}
+            activeDestination="modules"
+            onNavigate={navigateTeacherStudentPreview}
+            onExit={() => navigateTeacherCourse("home")}
+          >
+            <StudentActivity
+              state={state}
+              dispatch={dispatch}
+              onBack={() => navigateTeacherStudentPreview("modules")}
+            />
+          </CourseWorkspaceShell>
         ) : (
           <TeacherComposer
             course={selectedCourse}
             setCourse={setCourse}
-            setScreen={setScreen}
+            onPreview={() => setScreen("teacher-student-preview")}
             itemDrafts={composerDrafts}
             setItemDrafts={setComposerDrafts}
           />
         ))}
-      {screen === "teacher-composer" && (
-        <TeacherComposer
-          course={selectedCourse}
-          setCourse={setCourse}
-          setScreen={setScreen}
-          itemDrafts={composerDrafts}
-          setItemDrafts={setComposerDrafts}
-        />
+      {screen === "teacher-student-preview-placeholder" &&
+        teacherStudentPreviewProjection &&
+        teacherSelectedCatalogueCourse && (
+          <CourseWorkspaceShell
+            role="student"
+            course={teacherSelectedCatalogueCourse}
+            activeDestination={courseDestination}
+            onNavigate={navigateTeacherStudentPreview}
+            onExit={() => navigateTeacherCourse("home")}
+          >
+            <CourseDestinationPlaceholder
+              destination={
+                courseDestination as Exclude<
+                  CourseDestination,
+                  "home" | "modules"
+                >
+              }
+              role="student"
+              onOpenModules={() => navigateTeacherStudentPreview("modules")}
+              onReturnHome={() => navigateTeacherStudentPreview("home")}
+            />
+          </CourseWorkspaceShell>
+        )}
+      {screen === "teacher-composer" && teacherSelectedCatalogueCourse && (
+        <CourseWorkspaceShell
+          role="teacher"
+          course={teacherSelectedCatalogueCourse}
+          activeDestination="modules"
+          onNavigate={navigateTeacherCourse}
+          onExit={() => setScreen("teacher-dashboard")}
+        >
+          <TeacherComposer
+            course={selectedCourse}
+            setCourse={setCourse}
+            onPreview={() => {
+              setCourseDestination("home");
+              setScreen("teacher-student-preview");
+            }}
+            itemDrafts={composerDrafts}
+            setItemDrafts={setComposerDrafts}
+          />
+        </CourseWorkspaceShell>
       )}
-      {screen === "teacher-evidence" && (
-        <TeacherEvidence
-          state={state}
-          dispatch={dispatch}
-          setScreen={setScreen}
-        />
+      {screen === "teacher-evidence" && teacherSelectedCatalogueCourse && (
+        <CourseWorkspaceShell
+          role="teacher"
+          course={teacherSelectedCatalogueCourse}
+          activeDestination="grades"
+          onNavigate={navigateTeacherCourse}
+          onExit={() => setScreen("teacher-dashboard")}
+        >
+          <TeacherEvidence state={state} dispatch={dispatch} />
+        </CourseWorkspaceShell>
       )}
       <footer>
         <p>Learning Loop LMS · Public pilot prototype · Synthetic data only</p>

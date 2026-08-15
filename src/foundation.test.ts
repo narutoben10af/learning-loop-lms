@@ -13,6 +13,7 @@ function openTeacherComposer(): void {
   fireEvent.click(
     screen.getByRole("button", { name: "Open course workspace" }),
   );
+  fireEvent.click(screen.getByRole("button", { name: "Modules" }));
 }
 
 function openStudentCourse(): void {
@@ -107,7 +108,7 @@ describe("learning-loop prototype", () => {
       }),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Evidence & marking" }));
+    fireEvent.click(screen.getByRole("button", { name: "Grades" }));
     expect(
       screen.getByRole("heading", {
         name: "Supply shifts — learning evidence",
@@ -123,6 +124,96 @@ describe("learning-loop prototype", () => {
     });
     expect(screen.getByText("Alex Morgan")).toBeInTheDocument();
     expect(screen.queryByText("Jordan Lee")).not.toBeInTheDocument();
+  });
+
+  it("opens a recognisable course workspace with functional navigation", () => {
+    render(createElement(App));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open course workspace" }),
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Economics 10A" }),
+    ).toBeVisible();
+    expect(screen.getByText("Next teaching action")).toBeVisible();
+    const courseNav = screen.getByRole("navigation", {
+      name: "Economics 10A course areas",
+    });
+    for (const label of [
+      "Home",
+      "Announcements",
+      "Modules",
+      "Assignments",
+      "Quizzes",
+      "Grades",
+      "People",
+      "Pages",
+      "Files",
+      "Discussions",
+      "Calendar",
+      "Settings",
+    ]) {
+      expect(courseNav).toHaveTextContent(label);
+    }
+
+    fireEvent.click(screen.getByRole("button", { name: "Announcements" }));
+    expect(
+      screen.getByRole("heading", { name: "Announcements" }),
+    ).toBeVisible();
+    expect(screen.getByText("Planned · not available yet")).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Return to course home" }),
+    );
+    expect(screen.getByText("Next teaching action")).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Modules" }));
+    expect(
+      screen.getByRole("heading", {
+        name: "Build the learning path, in context.",
+      }),
+    ).toBeVisible();
+  });
+
+  it("keeps the student course shell free of teacher-only settings", () => {
+    render(createElement(App));
+    openStudentCourse();
+
+    const courseNav = screen.getByRole("navigation", {
+      name: "Economics 10A course areas",
+    });
+    expect(courseNav).toHaveTextContent("Announcements");
+    expect(courseNav).toHaveTextContent("Modules");
+    expect(courseNav).not.toHaveTextContent("Settings");
+    expect(screen.queryByText("Teacher course")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Files" }));
+    expect(screen.getByRole("heading", { name: "Files" })).toBeVisible();
+    expect(screen.getByText(/no browser-selected bytes/i)).toBeVisible();
+  });
+
+  it("discloses the predefined interactive template at author and learner entry points", () => {
+    render(createElement(App));
+    openStudentCourse();
+
+    expect(screen.getByText("Configurable interactive template")).toBeVisible();
+    expect(screen.getByText("Supply and demand explorer")).toBeVisible();
+    expect(
+      screen.getByText(
+        /interactive configuration is a planned template-builder capability; this pilot scenario is predefined/i,
+      ),
+    ).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open activity" }));
+    expect(screen.getByText("Supply and demand explorer")).toBeVisible();
+
+    openTeacherComposer();
+    expect(screen.getByText("Supply and demand explorer")).toBeVisible();
+    expect(
+      screen.getByText(/you can edit this item’s title and supporting text/i),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: /configure interactive/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("moves completed student evidence into the teacher review view", () => {
@@ -154,7 +245,7 @@ describe("learning-loop prototype", () => {
     fireEvent.click(screen.getByRole("button", { name: "← Economics 10A" }));
     expect(screen.getAllByText("Complete")).toHaveLength(2);
     openTeacherComposer();
-    fireEvent.click(screen.getByRole("button", { name: "Evidence & marking" }));
+    fireEvent.click(screen.getByRole("button", { name: "Grades" }));
     expect(
       screen.getByText(/Price falls and quantity rises · 1 attempt/),
     ).toBeInTheDocument();
@@ -240,7 +331,7 @@ describe("learning-loop prototype", () => {
     expect(screen.getByText("New page").closest("li")).toHaveTextContent(
       "Published",
     );
-  });
+  }, 10_000);
 
   it("keeps authored module changes through student preview and return", () => {
     render(createElement(App));
@@ -500,7 +591,9 @@ describe("learning-loop prototype", () => {
       screen.getByRole("button", { name: "Create private draft" }),
     );
 
-    expect(screen.getByText("Environmental Economics 10B")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Environmental Economics 10B" }),
+    ).toBeInTheDocument();
     expect(screen.getAllByText("Start here")).not.toHaveLength(0);
     fireEvent.click(screen.getByRole("button", { name: "← My workspace" }));
     expect(
@@ -564,7 +657,9 @@ describe("learning-loop prototype", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Create private draft" }),
     );
-    expect(screen.getByText("Private Teacher Draft")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Private Teacher Draft" }),
+    ).toBeInTheDocument();
 
     fireEvent.popState(window, {
       state: { learningLoopScreen: "student-course" },

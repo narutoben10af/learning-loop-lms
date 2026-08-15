@@ -66,11 +66,13 @@ The authorised, sanitised workflow study establishes capability coverage, not a 
 - **Modules and authoring:** support course-level module creation; contextual add; typed pages, resources, video, assignment, quiz, discussion, and subheader/learning-block items; visible lifecycle; prerequisites; progression; pointer reorder plus Move-To parity; and item management. Learning Loop keeps essential editing in context and puts advanced controls behind a deliberate panel.
 - **People and enrolment:** roster and roles are first-class. Production identity is teacher-created roster to private one-time activation, never open registration or a shared enrolled-course code.
 - **Announcements and communication:** teachers need draft/scheduled/published notice states and recipient clarity; students need a calm, ordered feed. Later direct messaging and discussions follow separate moderation and notification policies.
-- **Assignments, quizzes, and question bank:** preserve search, grouping, schedule, points, attempts, and module linkage while preventing duplicate/temporary grade columns. One immutable assessment identity owns its versions, parts, attempts, and gradebook projection.
-- **Marking and grades:** improve on dense grade administration with one needs-marking entry, learner/question navigation, rubric and attempt context, interruption-safe drafts, controlled return/release/notify, and auditable bulk operations with undo where safe.
+- **Assignments, quizzes, and question bank:** preserve search, grouping, schedule, points, attempts, and module linkage while preventing duplicate/temporary grade columns. The reusable question bank belongs to the organisation/school, not an individual course: ownership, permissioned sharing, subject/topic/level/standard tags, type, source/provenance, immutable versions, review/publish state, and explicit link-versus-copy semantics are first-class. One immutable assessment identity owns its versions, parts, attempts, and gradebook projection.
+- **Marking and grades:** retain both a quick spreadsheet-like overview and detailed human marking. The Gradebook uses students as rows and canonical graded items as columns, with weights/totals/visibility, pending and ungraded states, search/filter/sort, keyboard cells, a responsive accessible alternate layout, and explicit edit/save/cancel for controlled grade changes. Every override validates its scale/range and records who, when, and why; no silent overwrite is allowed. Detailed review supplies rubric, attempt, feedback, return/release, and notification context.
+- **Course reuse:** a deliberate duplicate/rollover command previews what will copy into a new private course identity and term. Structure, modules, safe content, settings templates, and assessment definitions/references may copy; memberships, submissions, grades, feedback, attendance, private drafts, credentials, and prior audit history never do. Announcements copy only by explicit selection. Shared-bank questions require an explicit reference-or-copy policy.
 - **Files, media, and pages:** media belongs to permissioned course content, not an unstructured public drive. Reuse, replacement, accessible descriptions, ownership, storage status, and student-safe projection are visible.
 - **Discussions, calendar, and settings:** these are real course operations, but they do not need to be fully built before the course shell can truthfully expose their delivery status and safe handoffs.
 - **External tools:** video, conferencing, specialised analytics, badges, and accessibility extensions use a typed plugin boundary. They are not mandatory first-party clones.
+- **Interactive authoring:** ordinary teachers need a self-service template registry and declarative configuration editor; AI is an optional draft source, never the dependency. The current Supply and demand explorer is a predefined pilot configuration and is labelled accurately until the builder lands.
 
 ### Sanitised structural re-audit — 2026-08-15
 
@@ -94,7 +96,7 @@ Evidence limit: screenshots were deliberately not tracked or published because t
 
 Goal: make the public prototype recognisable and useful as an LMS shell while keeping all data synthetic and device-local.
 
-Current status: the workspace/course contract and My workspace dashboard are implemented; the selected-course navigation shell and functional People, Announcements, Files, and Modules destinations remain the immediate delivery sequence.
+Current status: the workspace/course contract, My workspace dashboard, selected-course navigation shell, teaching-focused Home, and Modules integration are implemented. People, Announcements, and Files remain the immediate functional delivery sequence; other named course operations are visible with honest scope and a useful adjacent action rather than pretend functionality.
 
 Deliver in focused PRs:
 
@@ -119,9 +121,11 @@ Immediate acceptance criteria:
 Goal: make a course teachable end to end without duplicate assessment state or fake grading.
 
 - Module Composer depth: module/item search, templates, deliberate duplication, batch schedule/publish with preview and audit, and direct evidence links.
-- Assessment and question-bank core: versioned common question schemas, canonical assessment identity, taxonomy separate from grading groups, validation, preview isolation, release checklist, parts and attempts.
-- Submissions and human marking: needs-marking queue, learner/question navigation, rubric, annotations/comments, draft save, retry/return, feedback release and notification.
-- Gradebook: deterministic columns, filters/statuses, released feedback, weighting rules, history, safe imports/exports, and reversible audited bulk actions.
+- Interactive template authoring: the four explicit capability classes—Rich content, Configurable interactive template, Imported/embed resource, and AI-assisted draft—plus a non-AI declarative builder for supply–demand, AS–AD, IS–LM, PPC/PPF, and pedagogical budget-constraint/indifference-curve activities. Shift activities retain a baseline and show the active curve/outcome separately. See the [interactive template contract](INTERACTIVE_TEMPLATE_CONTRACT.md).
+- Organisation question bank and assessment core: school-owned reusable questions with ownership/share permissions, metadata taxonomy, type, provenance, immutable versions, draft/review/publish workflow, import/export contract, and explicit linked-versus-copied course references. Canonical assessments add parts, attempts, grading-group projection, validation, preview isolation, and a release checklist.
+- Submissions and detailed human marking: needs-marking queue, learner/question navigation, rubric, annotations/comments, interruption-safe draft save, retry/return, feedback release and notification.
+- Gradebook overview and controlled edits: real students-as-rows/items-as-columns state, totals/weights/visibility, pending/ungraded status, filters/sort/search, keyboard cells, accessible responsive alternative, and clear handoff to detailed marking. Grade adjustments require edit/save/cancel, range/scale validation, reason, immutable history, release state, and actor/time audit. CSV import/export stays a previewable future adapter seam.
+- Course duplication and rollover: preview an explicit safe-copy manifest, create a new private course identity/owner/audit/term, and verify source/destination isolation. Never copy memberships, submissions, grades, feedback, attendance, credentials, private drafts, or old audit history.
 - Roster and attendance: teacher-created roster; private activation contract; present/late/absent/excused/remote lesson records; mark-all-present then exceptions; audit.
 - Communications and resources: discussions, messaging/notifications, authorised article/video resources, disclosed engagement evidence and retention.
 
@@ -163,10 +167,12 @@ Every projection and later API call binds organisation, principal, course, relat
 - **Course:** immutable identity, code, title, subject, term, section, lifecycle, ownership, visibility, audit.
 - **Membership:** course/person relationship, role, status, source, activation lifecycle; credentials are separate.
 - **Learning sequence:** modules, ordered module items, prerequisites, availability, completion, release state, versioned content reference.
+- **Interactive templates:** organisation-owned registry entry, compatible schema/renderer/accessibility versions, declarative activity versions, validation/review/provenance, and student-safe published projection; no arbitrary executable lesson code.
 - **Content and media:** pages, resources, file/image/video metadata, accessibility descriptions, ownership, storage reference, publication projection.
 - **Communication:** announcements, discussion topics/posts, audience, moderation, schedule, notification intent.
-- **Assessment:** canonical identity, content versions, taxonomy, grading group, release checklist, attempts and accommodations.
-- **Evidence and grading:** submissions, response evidence, rubric decisions, grades/status, feedback release, notification and audit as separate records.
+- **Question bank and assessment:** organisation-owned question identity/version, ownership/share scope, subject/topic/level/standard/type/source metadata, link/copy reference policy, canonical assessment identity, content versions, taxonomy separate from grading group, release checklist, attempts, accommodations, and import/export mapping.
+- **Evidence and grading:** immutable submissions/attempts, response evidence, rubric decisions, grade records/status, append-only adjustments with actor/time/reason, totals/weight policy, feedback release, notification and audit as separate records.
+- **Course duplication:** an audited command and copy manifest that creates new identities and selectively references/copies safe definitions while excluding people and historical evidence by construction.
 - **Schedule and attendance:** course events, due/availability windows, lesson sessions and auditable attendance records.
 
 Domain services expose role-bound projections; browser components do not infer visibility from raw records.
