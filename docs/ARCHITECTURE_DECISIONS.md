@@ -63,6 +63,35 @@ strictly validated fictional profile snapshot.
 5. Local authoring never claims external delivery, contacts recipients, or
    crosses a provider boundary.
 
+## ADR-008 — Media metadata is separate from byte storage
+
+**Decision:** model course media as strict, versioned metadata records while a
+replaceable storage adapter owns file bytes. Validated HTTPS links and YouTube
+IDs may move from draft to published. Browser-selected files use a deliberately
+ephemeral local adapter: only allowlisted metadata persists and the record
+cannot publish until a separately authorised durable storage adapter exists.
+
+The local UI may create a same-session object URL for an image preview. That URL
+is component state, is revoked on removal/unmount, and is never written to the
+domain snapshot. Student projections reconstruct an allowlist and omit every
+device-local record, file handle, local path, byte payload, provider ID, and
+unknown field. YouTube embeds load only after a learner-triggered action.
+
+### Acceptance criteria
+
+1. Only HTTPS links and supported YouTube URL shapes enter the resource model;
+   unsafe schemes and malformed video IDs fail validation.
+2. Local file selection exposes an honest preview and metadata summary without
+   storing bytes or claiming upload durability.
+3. A device-local file cannot publish and never appears in a student
+   projection; a persisted malformed published local record fails closed.
+4. Editing published external media returns it to a private draft until another
+   explicit publish action.
+5. A future durable adapter can replace the local implementation without
+   changing course, module, or student-safe projection contracts; server-side
+   permission checks, scanning, quotas, retention, revocation, and audit remain
+   mandatory before production use.
+
 ## ADR-005 — Workspace, course membership, and storage-adapter boundaries
 
 Decision: expand the prototype around a versioned workspace aggregate rather

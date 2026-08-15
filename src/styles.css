@@ -2584,6 +2584,244 @@ footer button {
 .student-announcement {
   border-left: 4px solid var(--teal);
 }
+.files-shell {
+  max-width: 1120px;
+  padding-top: 2.5rem;
+}
+.files-hero {
+  align-items: end;
+  display: flex;
+  gap: 2rem;
+  justify-content: space-between;
+}
+.files-hero > div {
+  max-width: 720px;
+}
+.files-hero h1 {
+  font-size: clamp(2.5rem, 6vw, 4.6rem);
+}
+.media-count {
+  background: var(--teal-soft);
+  border-radius: 999px;
+  color: var(--teal-dark);
+  font-size: 0.78rem;
+  font-weight: 850;
+  padding: 0.55rem 0.85rem;
+  white-space: nowrap;
+}
+.media-editor,
+.media-library,
+.media-card,
+.media-empty {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 1.15rem;
+  box-shadow: var(--shadow);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.media-editor {
+  display: grid;
+  gap: 1.2rem 2rem;
+  grid-template-columns: minmax(0, 0.75fr) minmax(22rem, 1.25fr);
+  margin-top: 1.4rem;
+  padding: clamp(1.1rem, 3vw, 1.6rem);
+}
+.media-editor-intro h2,
+.media-editor-intro p {
+  margin-bottom: 0;
+}
+.media-editor-fields {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: minmax(12rem, 0.45fr) minmax(0, 1fr);
+}
+.media-editor-fields label,
+.media-tools label,
+.local-file-chooser > label {
+  color: var(--muted);
+  display: grid;
+  font-size: 0.76rem;
+  font-weight: 800;
+  gap: 0.35rem;
+}
+.media-editor-fields input,
+.media-editor-fields select,
+.media-editor-fields textarea,
+.media-tools input,
+.media-tools select {
+  min-height: 2.75rem;
+  min-width: 0;
+  width: 100%;
+}
+.media-description-field,
+.media-url-field,
+.local-file-chooser {
+  grid-column: 1 / -1;
+}
+.media-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  grid-column: 2;
+}
+.local-file-chooser {
+  background: var(--teal-soft);
+  border: 1px dashed var(--teal);
+  border-radius: 0.9rem;
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem;
+}
+.local-file-chooser input[type="file"] {
+  background: var(--paper);
+  padding: 0.55rem;
+}
+.local-file-preview {
+  align-items: center;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  display: flex;
+  gap: 0.9rem;
+  padding: 0.8rem;
+}
+.local-file-preview img,
+.file-preview-icon {
+  align-items: center;
+  aspect-ratio: 4 / 3;
+  background: var(--soft);
+  border-radius: 0.65rem;
+  display: flex;
+  flex: 0 0 7rem;
+  justify-content: center;
+  object-fit: cover;
+  overflow: hidden;
+  width: 7rem;
+}
+.file-preview-icon {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+.local-file-preview strong,
+.local-file-preview small {
+  display: block;
+}
+.local-file-preview small {
+  color: var(--muted);
+  margin: 0.2rem 0 0.65rem;
+}
+.media-library {
+  margin-top: 1.4rem;
+  padding: clamp(1.1rem, 3vw, 1.6rem);
+}
+.media-library-heading {
+  align-items: end;
+}
+.media-tools {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: minmax(0, 1fr) minmax(12rem, 0.35fr);
+  margin-top: 1rem;
+}
+.media-grid,
+.student-media-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 1rem;
+}
+.media-card,
+.media-empty {
+  box-shadow: none;
+  padding: 1rem;
+}
+.media-empty {
+  grid-column: 1 / -1;
+}
+.media-card-art,
+.media-card-preview {
+  align-items: center;
+  aspect-ratio: 16 / 7;
+  background: linear-gradient(135deg, var(--teal-soft), #f7f2d6);
+  border-radius: 0.8rem;
+  color: var(--teal-dark);
+  display: flex;
+  font-size: 0.7rem;
+  font-weight: 900;
+  justify-content: center;
+  letter-spacing: 0.12em;
+  object-fit: cover;
+  overflow: hidden;
+  width: 100%;
+}
+.media-card-art.youtube {
+  background: linear-gradient(135deg, #f8dfda, #f7f2d6);
+  color: #8b3131;
+}
+.media-card-art.local-file {
+  background: linear-gradient(135deg, #e7e4f6, var(--teal-soft));
+  color: #544397;
+}
+.media-kind-row {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.72rem;
+  font-weight: 800;
+  gap: 0.5rem;
+  justify-content: space-between;
+  margin-top: 0.8rem;
+}
+.media-card h2,
+.media-card h3 {
+  margin: 0.55rem 0 0.35rem;
+}
+.media-card > p,
+.media-empty p,
+.youtube-frame-wrap p {
+  color: var(--muted);
+}
+.media-card-actions {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+}
+.media-storage-note {
+  background: var(--soft);
+  border-radius: 0.7rem;
+  font-size: 0.78rem;
+  padding: 0.7rem;
+}
+.media-publish-boundary {
+  color: var(--muted);
+  flex: 1 1 10rem;
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+.student-media-card {
+  border-top: 4px solid var(--teal);
+}
+.student-media-card > .button,
+.youtube-frame-wrap + .button {
+  margin-top: 0.8rem;
+}
+.youtube-frame-wrap {
+  margin-top: 0.8rem;
+}
+.youtube-frame-wrap iframe {
+  aspect-ratio: 16 / 9;
+  border: 0;
+  border-radius: 0.75rem;
+  width: 100%;
+}
 
 @media (max-width: 1020px) {
   .course-workspace-frame {
@@ -2629,7 +2867,8 @@ footer button {
   .teacher-course-hero,
   .course-action-callout,
   .people-hero,
-  .announcements-hero {
+  .announcements-hero,
+  .files-hero {
     align-items: stretch;
     flex-direction: column;
   }
@@ -2651,12 +2890,27 @@ footer button {
   .announcement-tools {
     grid-template-columns: 1fr;
   }
+  .media-editor,
+  .media-editor-fields,
+  .media-tools {
+    grid-template-columns: 1fr;
+  }
   .add-person-actions {
     grid-column: 1;
   }
   .announcement-editor-actions,
   .announcement-body-field {
     grid-column: 1;
+  }
+  .media-editor-actions,
+  .media-description-field,
+  .media-url-field,
+  .local-file-chooser {
+    grid-column: 1;
+  }
+  .media-grid,
+  .student-media-grid {
+    grid-template-columns: 1fr;
   }
   .my-course-profile {
     flex-basis: auto;
@@ -2686,6 +2940,10 @@ footer button {
   .announcement-card-actions {
     display: grid;
   }
+  .media-editor-actions,
+  .media-card-actions {
+    display: grid;
+  }
   .teacher-course-primary-actions .button,
   .course-action-callout .button,
   .course-placeholder-actions .button,
@@ -2696,6 +2954,11 @@ footer button {
   .announcement-card-actions > .button {
     width: 100%;
   }
+  .files-hero > .button,
+  .media-editor-actions .button,
+  .media-card-actions .button {
+    width: 100%;
+  }
   .announcement-schedule,
   .announcement-schedule > div {
     display: grid;
@@ -2703,6 +2966,15 @@ footer button {
     width: 100%;
   }
   .announcement-schedule .button {
+    width: 100%;
+  }
+  .local-file-preview {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .local-file-preview img,
+  .file-preview-icon {
+    flex-basis: auto;
     width: 100%;
   }
   .teacher-course-signals {
