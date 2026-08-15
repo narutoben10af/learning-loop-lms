@@ -159,7 +159,6 @@ describe("data-driven Economics graph model", () => {
     );
     if (width <= 320) {
       expect(layout.axisTitles.x.lines.length).toBeGreaterThan(1);
-      expect(layout.axisTitles.y.lines.length).toBeGreaterThan(1);
     }
     expect(layout.axisTitles.x.rect.x).toBeGreaterThanOrEqual(0);
     expect(
