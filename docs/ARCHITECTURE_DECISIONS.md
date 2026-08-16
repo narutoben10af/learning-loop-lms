@@ -7,6 +7,43 @@ teacher-comprehensibility contract in
 [Integration Boundaries](INTEGRATION_BOUNDARIES.md). No adapter may widen the
 domain services below.
 
+## ADR-009 — Organisation question versions feed immutable course assessment releases
+
+**Decision:** keep the reusable question bank at organisation scope and course
+assessments at course scope. A course assessment deliberately selects an exact
+published bank version as either a linked-version reference or copied snapshot,
+then freezes that content and provenance in an immutable released assessment.
+
+Question publication requires a named reviewer other than the requester. Other
+authors can discover only organisation-shared published content; private or
+newer owner drafts stay out of their projection. Student assessment projection
+requires an active course membership and removes answer keys and teacher-only
+guidance. Attempts bind course membership, assessment version, question
+version, responses, results, and grade events rather than copying a learner
+display name.
+
+The pilot scorer is deliberately narrow: multiple-choice and true/false use a
+versioned deterministic rule; short answers remain pending human review. A
+released assessment cannot be edited in place. Later amendment, regrade,
+feedback-release, Gradebook, and export workflows must append auditable events
+against the preserved release and attempt evidence.
+
+### Acceptance criteria
+
+1. Strict validation rejects unknown fields, broken version references,
+   inconsistent totals/evidence, cross-organisation scope, and stale schemas.
+2. Organisation discovery cannot reveal private questions or an owner's newer
+   draft; students cannot query the author bank.
+3. Link/copy choices and provenance are explicit and frozen in each assessment
+   release; a later bank revision cannot change an existing attempt.
+4. Student projection never exposes objective answer keys, manual marking
+   guidance, another learner, or unreleased content.
+5. Objective scoring records a deterministic grade event; short answers never
+   claim correctness or a released score before human review.
+6. The contract has no live AI, provider, import/export, production storage, or
+   external student-data exchange. See
+   [Assessment and Organisation Question Bank Contract](ASSESSMENT_QUESTION_BANK_CONTRACT.md).
+
 ## ADR-006 — Profile-linked People projection without production identity
 
 Decision: keep profile records distinct from workspace membership records.
