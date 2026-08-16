@@ -15,6 +15,7 @@ import {
   reviseAssessmentDraft,
   startAssessmentAttempt,
   submitAssessmentAttempt,
+  validateAssessmentSnapshot,
 } from "./assessment";
 import {
   QUESTION_BANK_STORAGE_KEY,
@@ -722,6 +723,42 @@ describe("course assessment and attempt domain", () => {
       projectStudentAttempt(assessments, workspace, student, "attempt-short")
         .results,
     ).toBeNull();
+
+    const forgedRelease = structuredClone(assessments);
+    forgedRelease.attempts[0].state = "released";
+    forgedRelease.attempts[0].releasedAt =
+      forgedRelease.attempts[0].submittedAt;
+    expect(validateAssessmentSnapshot(forgedRelease)).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/human-review attempt must remain submitted/),
+      ]),
+    );
+
+    const forgedScore = structuredClone(assessments);
+    forgedScore.attempts[0].state = "released";
+    forgedScore.attempts[0].releasedAt = forgedScore.attempts[0].submittedAt;
+    forgedScore.attempts[0].earnedPoints = 4;
+    forgedScore.attempts[0].results[0].earnedPoints = 4;
+    forgedScore.attempts[0].results[0].correct = true;
+    expect(validateAssessmentSnapshot(forgedScore)).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/human-review results must remain pending/),
+      ]),
+    );
+    const safeFallback = createAssessmentSnapshot(
+      organizationId,
+      owner.principalId,
+      now,
+    );
+    expect(
+      loadAssessmentSnapshot(
+        {
+          getItem: () => JSON.stringify(forgedScore),
+          setItem: () => undefined,
+        },
+        safeFallback,
+      ),
+    ).toEqual(safeFallback);
   });
 
   it("enforces release and availability boundaries and fails closed on persistence", () => {
@@ -899,6 +936,51 @@ describe("course assessment and attempt domain", () => {
       loadAssessmentSnapshot(
         {
           getItem: () => JSON.stringify(inProgress),
+          setItem: () => undefined,
+        },
+        fallback,
+      ),
+    ).toEqual(fallback);
+
+    const overLimit = structuredClone(assessments);
+    let attempted = startAssessmentAttempt(overLimit, workspace, student, {
+      id: "attempt-1",
+      assessmentId: "quiz-1",
+      now: later,
+    });
+    attempted = answerAssessmentItem(attempted, workspace, student, {
+      attemptId: "attempt-1",
+      itemId: "item-1",
+      response: { kind: "option", optionId: "falls" },
+      now: later,
+    });
+    attempted = answerAssessmentItem(attempted, workspace, student, {
+      attemptId: "attempt-1",
+      itemId: "item-2",
+      response: { kind: "boolean", value: true },
+      now: later,
+    });
+    attempted = submitAssessmentAttempt(
+      attempted,
+      workspace,
+      student,
+      "attempt-1",
+      later,
+    );
+    const duplicatedAttempt = structuredClone(attempted.attempts[0]);
+    duplicatedAttempt.id = "attempt-2";
+    duplicatedAttempt.attemptNumber = 2;
+    duplicatedAttempt.gradeEvents[0].id = "attempt-2:deterministic:4";
+    attempted.attempts.push(duplicatedAttempt);
+    expect(validateAssessmentSnapshot(attempted)).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/cannot exceed the released attempt policy/),
+      ]),
+    );
+    expect(
+      loadAssessmentSnapshot(
+        {
+          getItem: () => JSON.stringify(attempted),
           setItem: () => undefined,
         },
         fallback,

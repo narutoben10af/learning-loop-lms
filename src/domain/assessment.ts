@@ -2083,24 +2083,139 @@ export function validateAssessmentSnapshot(value: unknown): string[] {
           }
         }
       }
+      const resultRecords = Array.isArray(attempt.results)
+        ? attempt.results.filter(isRecord)
+        : [];
+      const hasHumanReview = release.items.some(
+        (item) =>
+          isRecord(item) &&
+          isRecord(item.content) &&
+          item.content.type === "short-answer",
+      );
+      const deterministicPoints = resultRecords.reduce(
+        (total, result) =>
+          result.gradingMethod === "deterministic-v1" &&
+          typeof result.earnedPoints === "number"
+            ? total + result.earnedPoints
+            : total,
+        0,
+      );
+      for (const result of resultRecords) {
+        if (
+          result.gradingMethod === "human-review" &&
+          (result.correct !== null ||
+            result.earnedPoints !== null ||
+            result.feedback !== null)
+        ) {
+          issues.push(
+            `${label} human-review results must remain pending until the human-marking contract is implemented`,
+          );
+        }
+      }
+      const gradeEvents = Array.isArray(attempt.gradeEvents)
+        ? attempt.gradeEvents.filter(isRecord)
+        : [];
+      if (attempt.state !== "in-progress") {
+        if (gradeEvents.length !== 1) {
+          issues.push(
+            `${label} submitted attempt requires one deterministic scoring event`,
+          );
+        } else {
+          const event = gradeEvents[0];
+          if (
+            event.actorKind !== "system" ||
+            event.actorId !== "system:deterministic-v1" ||
+            event.itemId !== null ||
+            event.beforePoints !== null ||
+            event.afterPoints !== deterministicPoints ||
+            event.occurredAt !== attempt.submittedAt
+          ) {
+            issues.push(
+              `${label} deterministic scoring event is inconsistent with released evidence`,
+            );
+          }
+        }
+        if (hasHumanReview) {
+          if (
+            attempt.state !== "submitted" ||
+            attempt.earnedPoints !== null ||
+            attempt.releasedAt !== null
+          ) {
+            issues.push(
+              `${label} human-review attempt must remain submitted and unreleased`,
+            );
+          }
+        } else if (isRecord(release.attemptPolicy)) {
+          const resultRelease = release.attemptPolicy.resultRelease;
+          if (resultRelease === "immediate") {
+            if (
+              attempt.state !== "released" ||
+              attempt.releasedAt !== attempt.submittedAt
+            ) {
+              issues.push(
+                `${label} immediate objective result must release at submission`,
+              );
+            }
+          } else if (
+            attempt.state !== "graded" ||
+            attempt.releasedAt !== null
+          ) {
+            issues.push(
+              `${label} non-immediate objective result must remain graded and unreleased`,
+            );
+          }
+        }
+      }
     });
-    const attemptNumbers = new Map<string, number[]>();
+    const attemptNumbers = new Map<
+      string,
+      { numbers: number[]; maxAttempts: number }
+    >();
+    const assessmentRecords = Array.isArray(value.assessments)
+      ? value.assessments
+      : [];
     for (const attempt of value.attempts) {
       if (!isRecord(attempt)) continue;
+      const assessment = assessmentRecords.find(
+        (candidate) =>
+          isRecord(candidate) && candidate.id === attempt.assessmentId,
+      );
+      const release =
+        isRecord(assessment) && Array.isArray(assessment.releasedVersions)
+          ? assessment.releasedVersions.find(
+              (candidate) =>
+                isRecord(candidate) &&
+                candidate.version === attempt.assessmentVersion,
+            )
+          : undefined;
+      if (!isRecord(release) || !isRecord(release.attemptPolicy)) continue;
+      const maxAttempts = Number(release.attemptPolicy.maxAttempts);
+      if (!Number.isInteger(maxAttempts) || maxAttempts < 1) continue;
       const key = `${String(attempt.assessmentId)}:${String(
-        attempt.studentPrincipalId,
-      )}`;
-      const numbers = attemptNumbers.get(key) ?? [];
+        attempt.assessmentVersion,
+      )}:${String(attempt.studentPrincipalId)}`;
+      const group = attemptNumbers.get(key) ?? {
+        numbers: [],
+        maxAttempts,
+      };
       if (typeof attempt.attemptNumber === "number") {
-        numbers.push(attempt.attemptNumber);
+        group.numbers.push(attempt.attemptNumber);
       }
-      attemptNumbers.set(key, numbers);
+      attemptNumbers.set(key, group);
     }
-    for (const numbers of attemptNumbers.values()) {
+    for (const { numbers, maxAttempts } of attemptNumbers.values()) {
       const ordered = [...numbers].sort((left, right) => left - right);
       if (ordered.some((number, index) => number !== index + 1)) {
         issues.push(
           "assessment attempt numbers must be contiguous per student",
+        );
+      }
+      if (
+        ordered.length > maxAttempts ||
+        ordered.some((number) => number > maxAttempts)
+      ) {
+        issues.push(
+          "assessment attempts cannot exceed the released attempt policy",
         );
       }
     }
