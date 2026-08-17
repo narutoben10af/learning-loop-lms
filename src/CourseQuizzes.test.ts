@@ -75,14 +75,21 @@ describe("course quiz authoring and attempts", () => {
     fireEvent.click(screen.getByRole("button", { name: "Question bank" }));
     fireEvent.click(screen.getByRole("button", { name: "+ New question" }));
     expect(screen.getByLabelText("Question type")).toHaveFocus();
-    fireEvent.change(screen.getByLabelText("Question type"), {
-      target: { value: "true-false" },
-    });
     fireEvent.change(screen.getByLabelText("Prompt"), {
       target: {
         value: "A price ceiling below equilibrium can create a shortage.",
       },
     });
+    for (const [label, value] of [
+      ["Option A", "A shortage"],
+      ["Option B", "A surplus"],
+      ["Option C", "No market pressure"],
+      ["Option D", "Perfectly elastic demand"],
+    ]) {
+      fireEvent.change(screen.getByLabelText(label), {
+        target: { value },
+      });
+    }
     fireEvent.change(screen.getByLabelText("Feedback when correct"), {
       target: {
         value: "Correct: quantity demanded exceeds quantity supplied.",
@@ -109,6 +116,28 @@ describe("course quiz authoring and attempts", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Organisation review · QA demo" }),
     );
+    fireEvent.click(screen.getByText("Check released key and feedback"));
+    for (const option of [
+      "A. A shortage",
+      "B. A surplus",
+      "C. No market pressure",
+      "D. Perfectly elastic demand",
+    ]) {
+      expect(screen.getByText(option)).toBeVisible();
+    }
+    expect(screen.getByLabelText("Correct answer")).toHaveTextContent(
+      "Correct",
+    );
+    expect(
+      screen.getByText((_, element) => {
+        const text = element?.textContent ?? "";
+        return (
+          element?.tagName === "P" &&
+          text.includes("Teacher-authored in the Learning Loop local pilot") &&
+          text.includes("original")
+        );
+      }),
+    ).toBeVisible();
     fireEvent.click(
       screen.getByRole("button", { name: "Approve and publish" }),
     );
@@ -122,6 +151,48 @@ describe("course quiz authoring and attempts", () => {
     expect(
       within(publishedCard as HTMLElement).getByText("Published"),
     ).toBeVisible();
+  });
+
+  it("creates and releases a reviewed-question quiz into student visibility", () => {
+    render(createElement(App));
+    openTeacherQuizzes();
+    fireEvent.click(screen.getByRole("button", { name: "+ Create quiz" }));
+    fireEvent.change(screen.getByLabelText("Quiz title"), {
+      target: { value: "Price controls checkpoint" },
+    });
+    fireEvent.change(screen.getByLabelText("Learner instructions"), {
+      target: { value: "Choose the best market explanation." },
+    });
+    fireEvent.change(screen.getByLabelText("Maximum attempts"), {
+      target: { value: "2" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save private quiz draft" }),
+    );
+    const draftCard = screen
+      .getByRole("heading", { name: "Price controls checkpoint" })
+      .closest("article");
+    expect(draftCard).not.toBeNull();
+    fireEvent.click(
+      within(draftCard as HTMLElement).getByRole("button", {
+        name: "Add question",
+      }),
+    );
+    fireEvent.click(
+      within(draftCard as HTMLElement).getByRole("button", {
+        name: "Release quiz version 1",
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Student courses" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open course" }));
+    fireEvent.click(screen.getByRole("button", { name: "Quizzes" }));
+    expect(
+      screen.getByRole("heading", { name: "Price controls checkpoint" }),
+    ).toBeVisible();
+    expect(screen.getAllByRole("button", { name: "Start quiz" })).toHaveLength(
+      2,
+    );
   });
 
   it("starts, resumes, submits, and persists a private deterministic result", () => {

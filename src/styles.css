@@ -3291,6 +3291,32 @@ footer button {
 .review-answer-key p {
   margin: 0 0 0.65rem;
 }
+.review-option-list {
+  display: grid;
+  gap: 0.35rem;
+  list-style: none;
+  margin: 0 0 0.65rem;
+  padding: 0;
+}
+.review-option-list li {
+  align-items: center;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  display: flex;
+  gap: 0.6rem;
+  justify-content: space-between;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.7rem;
+}
+.review-option-list li > strong {
+  background: var(--teal-soft);
+  border-radius: 999px;
+  color: var(--teal-dark);
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  padding: 0.3rem 0.5rem;
+}
 .assessment-policy-grid {
   display: grid;
   gap: 0.65rem;

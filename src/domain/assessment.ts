@@ -2281,6 +2281,11 @@ export function loadAssessmentSnapshot(
     if (!raw) return clone(fallback);
     const parsed: unknown = JSON.parse(raw);
     assertValidAssessmentSnapshot(parsed);
+    if (parsed.organizationId !== fallback.organizationId) {
+      throw new Error(
+        "Stored assessments are outside the configured organization",
+      );
+    }
     return clone(parsed);
   } catch {
     return clone(fallback);

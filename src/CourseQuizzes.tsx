@@ -235,6 +235,30 @@ function answerKeyLabel(content: QuestionContent): string {
   return "Human review only";
 }
 
+function ReviewMultipleChoiceOptions({
+  content,
+}: {
+  content: Extract<QuestionContent, { type: "multiple-choice" }>;
+}) {
+  return (
+    <>
+      <strong>All answer options</strong>
+      <ol className="review-option-list">
+        {content.options.map((option) => (
+          <li key={option.id}>
+            <span>
+              {option.id.toUpperCase()}. {option.text}
+            </span>
+            {option.id === content.correctOptionId && (
+              <strong aria-label="Correct answer">Correct</strong>
+            )}
+          </li>
+        ))}
+      </ol>
+    </>
+  );
+}
+
 function QuestionEditor({
   draft,
   setDraft,
@@ -656,12 +680,29 @@ function ReviewCheckpoint({ props }: { props: TeacherQuizzesProps }) {
               <details className="quiz-details">
                 <summary>Check released key and feedback</summary>
                 <div className="review-answer-key">
+                  {question.current.content.type === "multiple-choice" && (
+                    <ReviewMultipleChoiceOptions
+                      content={question.current.content}
+                    />
+                  )}
                   <strong>Answer key</strong>
                   <p>{answerKeyLabel(question.current.content)}</p>
                   <strong>Correct feedback</strong>
                   <p>{question.current.feedback.correct}</p>
                   <strong>Incorrect feedback</strong>
                   <p>{question.current.feedback.incorrect}</p>
+                  <strong>Classification and provenance</strong>
+                  <p>
+                    {question.current.metadata.subject} ·{" "}
+                    {question.current.metadata.topic} ·{" "}
+                    {question.current.metadata.level}
+                    {question.current.metadata.tags.length
+                      ? ` · ${question.current.metadata.tags.join(" · ")}`
+                      : ""}
+                    <br />
+                    {question.current.provenance.sourceLabel} ·{" "}
+                    {question.current.provenance.kind}
+                  </p>
                 </div>
               </details>
               <button
