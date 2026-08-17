@@ -9,6 +9,7 @@ import {
   loadAssessmentSnapshot,
   projectTeacherAssessments,
   projectStudentAssessments,
+  projectStudentAssessmentAttempts,
   projectStudentAttempt,
   publishAssessment,
   removeAssessmentQuestion,
@@ -627,6 +628,20 @@ describe("course assessment and attempt domain", () => {
         maxPoints: 3,
       }),
     );
+    expect(
+      projectStudentAssessmentAttempts(
+        assessments,
+        workspace,
+        student,
+        "quiz-1",
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        id: "attempt-1",
+        attemptNumber: 1,
+        state: "released",
+      }),
+    ]);
     const orphanedEvidence = structuredClone(assessments);
     orphanedEvidence.attempts[0].studentMembershipId = "membership-other";
     expect(() =>
