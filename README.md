@@ -21,10 +21,11 @@ Learning Loop is an experimental, learning-first LMS growing from one validated 
 - A functional synthetic People surface with profile-linked course memberships, teacher roster search/filter, local pending-record creation without email, and a private student self-projection.
 - A functional local Announcements surface with explicit audience, draft/scheduled/published/archive states, deliberate release, and a student feed that excludes private or future notices.
 - A functional Files/media surface for validated HTTPS links, optional user-loaded YouTube embeds, and honest device-local file/image drafts whose bytes and preview URLs are never persisted or shown to students.
-- A teacher-only Module Composer with contextual editing for pages, learning blocks, resources, videos, and honest draft-only assessment handoffs.
+- A teacher-only Module Composer with contextual editing for pages, learning blocks, resources, videos, and honest assessment handoffs.
+- An organisation question bank and course quiz workspace for original MCQ/true-false authoring, named review, deliberate linked/copy assembly, immutable release, student attempts, deterministic scoring, and private released feedback.
 - Minimal private mastery evidence tied to demonstrated outcomes, not time, streaks, or public ranking.
 
-The current build starts at **My workspace**, supports local multi-course creation/selection, and opens each selected course into a recognisable Home/Modules/People/Announcements/Files workspace. It is still not a complete LMS: the organisation question-bank and assessment contracts are now the active domain-first milestone, while the functional authoring/attempt UI, submissions, Gradebook, attendance, and production identity/storage remain sequenced work. Named unfinished course areas disclose their current limits. See the [canonical master product plan](docs/MASTER_PRODUCT_PLAN.md) and [assessment contract](docs/ASSESSMENT_QUESTION_BANK_CONTRACT.md) for the honest phase boundaries.
+The current build starts at **My workspace**, supports local multi-course creation/selection, and opens each selected course into a recognisable Home/Modules/People/Announcements/Files/Quizzes workspace. It is still not a complete LMS: this first quiz slice supports only MCQ and true/false end to end. Short answers require the later human-marking workflow; submissions, Gradebook, attendance, production identity/storage, amendment/regrade, and broader question types remain sequenced work. Named unfinished course areas disclose their current limits. See the [canonical master product plan](docs/MASTER_PRODUCT_PLAN.md) and [assessment contract](docs/ASSESSMENT_QUESTION_BANK_CONTRACT.md) for the honest phase boundaries.
 
 Not included: payments, live AI or model-provider calls, a live MCP server, native Flutter apps, Canvas integration, parent access, attendance, public registration, remote proctoring, Python execution, or copied exam content.
 
@@ -82,7 +83,7 @@ Do not enter real student information into the prototype. The pilot requires no 
 
 ## Roadmap
 
-Delivery is deliberately split into small PRs. The active milestone is now the real LMS shell: workspace/course domain, course dashboard and creation, course overview/navigation, People, Announcements, Files/media, and integration of the existing Modules/Economics work. Self-service interactive templates, organisation-level question bank and assessments, detailed marking, a real Gradebook, safe course rollover, roster/attendance, and communications follow as focused slices. Production auth/storage, plugins, analytics, mobile, parents, MCP, and premium AI remain later phases after permissions and domain APIs are validated.
+Delivery is deliberately split into small PRs. The real LMS shell and first objective quiz loop are now concrete: workspace/course domain, dashboard and creation, course overview/navigation, People, Announcements, Files/media, Modules/Economics, organisation question bank, course quiz release, and private student attempts/results. Detailed human marking, a real Gradebook, self-service interactive templates, safe course rollover, roster/attendance, and communications follow as focused slices. Production auth/storage, plugins, analytics, mobile, parents, MCP, and premium AI remain later phases after permissions and domain APIs are validated.
 
 ## Contributing and licence
 

@@ -1190,6 +1190,48 @@ export function projectStudentAttempt(
   };
 }
 
+export function projectStudentAssessmentAttempts(
+  snapshot: AssessmentSnapshot,
+  workspace: WorkspaceSnapshot,
+  actor: WorkspaceActor,
+  assessmentId: string,
+): StudentAttemptProjection[] {
+  assertValidAssessmentSnapshot(snapshot);
+  assertValidWorkspaceSnapshot(workspace);
+  if (snapshot.organizationId !== actor.organizationId) {
+    throw new Error("Assessment snapshot is outside the actor organization");
+  }
+  const assessment = snapshot.assessments.find(
+    (candidate) => candidate.id === assessmentId,
+  );
+  if (!assessment)
+    throw new Error("Assessment is not available to this student");
+  const membership = exactStudentMembership(
+    workspace,
+    actor,
+    assessment.courseId,
+  );
+  return snapshot.attempts
+    .filter(
+      (attempt) =>
+        attempt.assessmentId === assessment.id &&
+        attempt.studentPrincipalId === actor.principalId &&
+        attempt.studentMembershipId === membership.id,
+    )
+    .sort((left, right) => left.attemptNumber - right.attemptNumber)
+    .map((attempt) => ({
+      id: attempt.id,
+      assessmentId: attempt.assessmentId,
+      assessmentVersion: attempt.assessmentVersion,
+      attemptNumber: attempt.attemptNumber,
+      state: attempt.state,
+      responses: clone(attempt.responses),
+      results: attempt.state === "released" ? clone(attempt.results) : null,
+      earnedPoints: attempt.state === "released" ? attempt.earnedPoints : null,
+      maxPoints: attempt.maxPoints,
+    }));
+}
+
 function unexpectedKeys(
   value: Record<string, unknown>,
   allowed: readonly string[],
@@ -2239,6 +2281,11 @@ export function loadAssessmentSnapshot(
     if (!raw) return clone(fallback);
     const parsed: unknown = JSON.parse(raw);
     assertValidAssessmentSnapshot(parsed);
+    if (parsed.organizationId !== fallback.organizationId) {
+      throw new Error(
+        "Stored assessments are outside the configured organization",
+      );
+    }
     return clone(parsed);
   } catch {
     return clone(fallback);

@@ -1,8 +1,11 @@
 # Assessment and Organisation Question Bank Contract
 
-Status: domain-first pilot contract. The current branch adds local, synthetic
-domain behavior and tests; it does not add a production assessment service,
-gradebook, external import, AI authoring, or real student data.
+Status: implemented local pilot contract plus first visible objective quiz
+surface. Teachers can author, review, publish, assemble, and release original
+multiple-choice and true/false questions; students can start, resume, submit,
+and privately view policy-released deterministic results. This is not a
+production assessment service and does not add gradebook, external import, AI
+authoring, real student data, or short-answer marking.
 
 ## Why this boundary exists
 
@@ -120,3 +123,23 @@ projections; they do not read raw assessment snapshots.
    complete teacher authoring/assembly/release and student attempt/result paths
    at desktop, 375 px, 320 px, keyboard-only, and 200% reflow before claiming
    those types usable.
+
+## Implemented visible slice
+
+- The teacher Quizzes area separates course quiz assembly, the organisation
+  bank, and an explicitly labelled author/QA reviewer checkpoint. A normal
+  teacher cannot silently self-approve their own question version.
+- The editor exposes only MCQ and true/false. Save creates a private draft;
+  request review and named reviewer publication are separate actions.
+- Quiz assembly selects a published question, exact link-or-copy policy,
+  points, availability, and one-to-three attempts. This pilot releases one
+  immutable version and uses immediate results only because every selectable
+  question is deterministic.
+- The student Quizzes area receives only role-safe projections. It supports
+  local start/resume, one response per item, explicit submission, and private
+  released item feedback. It never receives bank keys or another learner's
+  attempt.
+- Browser persistence is versioned and fail-closed. The UI is an original,
+  synthetic demonstration; organisation reviewer identity, notifications,
+  production storage, human marking, amendments, regrades, and Gradebook
+  release remain later focused workflows.

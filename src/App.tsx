@@ -114,6 +114,41 @@ import {
   type MediaSource,
 } from "./domain/media";
 import { CourseFiles } from "./CourseFiles";
+import {
+  QUESTION_BANK_STORAGE_KEY,
+  createQuestion,
+  createQuestionBankSnapshot,
+  loadQuestionBankSnapshot,
+  projectQuestionBank,
+  publishQuestion,
+  requestQuestionReview,
+  reviseQuestionDraft,
+  saveQuestionBankSnapshot,
+  type QuestionBankSnapshot,
+} from "./domain/questionBank";
+import {
+  ASSESSMENT_STORAGE_KEY,
+  addBankQuestionToAssessment,
+  answerAssessmentItem,
+  createAssessmentSnapshot,
+  createCourseAssessment,
+  loadAssessmentSnapshot,
+  projectStudentAssessmentAttempts,
+  projectStudentAssessments,
+  projectTeacherAssessments,
+  publishAssessment,
+  removeAssessmentQuestion,
+  saveAssessmentSnapshot,
+  startAssessmentAttempt,
+  submitAssessmentAttempt,
+  type AssessmentSnapshot,
+} from "./domain/assessment";
+import {
+  CourseQuizzes,
+  type AssessmentAuthoringInput,
+  type MutationResult,
+  type QuestionAuthoringInput,
+} from "./CourseQuizzes";
 
 const predictionOptions: Array<{ value: Prediction; label: string }> = [
   { value: "price-down-quantity-up", label: "Price falls and quantity rises" },
@@ -458,6 +493,171 @@ function buildPilotMediaSnapshot(): MediaSnapshot {
 }
 
 const pilotMediaSnapshot = buildPilotMediaSnapshot();
+
+function buildPilotQuestionBankSnapshot(): QuestionBankSnapshot {
+  let bank = createQuestionBankSnapshot(
+    DEMO_ORGANIZATION_ID,
+    ownerActor.principalId,
+    DEMO_NOW,
+  );
+  const questions: Array<Omit<QuestionAuthoringInput, "id"> & { id: string }> =
+    [
+      {
+        id: "bank-market-shortage",
+        sharing: "organization-authors",
+        metadata: {
+          subject: "Economics",
+          topic: "Market equilibrium",
+          level: "IGCSE",
+          standards: [],
+          tags: ["demand", "equilibrium", "shortage"],
+        },
+        content: {
+          type: "multiple-choice",
+          prompt:
+            "At a price below market equilibrium, which market condition is most likely?",
+          options: [
+            { id: "a", text: "A surplus" },
+            { id: "b", text: "A shortage" },
+            { id: "c", text: "No pressure on price" },
+            { id: "d", text: "Supply becomes perfectly elastic" },
+          ],
+          correctOptionId: "b",
+        },
+        feedback: {
+          correct:
+            "Correct. Quantity demanded exceeds quantity supplied below equilibrium, creating a shortage.",
+          incorrect:
+            "Compare quantity demanded with quantity supplied at a price below equilibrium: buyers want more than firms offer.",
+        },
+        provenance: {
+          kind: "synthetic",
+          sourceLabel: "Original Learning Loop pilot question",
+          sourceUrl: null,
+        },
+      },
+      {
+        id: "bank-supply-right",
+        sharing: "organization-authors",
+        metadata: {
+          subject: "Economics",
+          topic: "Supply shifts",
+          level: "IGCSE",
+          standards: [],
+          tags: ["supply", "costs", "equilibrium"],
+        },
+        content: {
+          type: "true-false",
+          prompt:
+            "A fall in firms' production costs can shift the market supply curve to the right.",
+          correctAnswer: true,
+        },
+        feedback: {
+          correct:
+            "Correct. Lower production costs increase supply at each price, shifting supply right.",
+          incorrect:
+            "Review the supply determinant: lower production costs make supplying each quantity more profitable.",
+        },
+        provenance: {
+          kind: "synthetic",
+          sourceLabel: "Original Learning Loop pilot question",
+          sourceUrl: null,
+        },
+      },
+    ];
+  questions.forEach((question, index) => {
+    const authoredAt = new Date(
+      Date.parse(DEMO_NOW) + (index * 3 + 1) * 1000,
+    ).toISOString();
+    const reviewAt = new Date(Date.parse(authoredAt) + 1000).toISOString();
+    const publishAt = new Date(Date.parse(reviewAt) + 1000).toISOString();
+    bank = createQuestion(bank, pilotWorkspaceSnapshot, teacherActor, {
+      ...question,
+      now: authoredAt,
+    });
+    bank = requestQuestionReview(
+      bank,
+      pilotWorkspaceSnapshot,
+      teacherActor,
+      question.id,
+      reviewAt,
+    );
+    bank = publishQuestion(
+      bank,
+      pilotWorkspaceSnapshot,
+      ownerActor,
+      question.id,
+      publishAt,
+    );
+  });
+  return bank;
+}
+
+const pilotQuestionBankSnapshot = buildPilotQuestionBankSnapshot();
+
+function buildPilotAssessmentSnapshot(
+  bank: QuestionBankSnapshot,
+): AssessmentSnapshot {
+  let assessments = createAssessmentSnapshot(
+    DEMO_ORGANIZATION_ID,
+    ownerActor.principalId,
+    new Date(Date.parse(DEMO_NOW) + 10_000).toISOString(),
+  );
+  assessments = createCourseAssessment(
+    assessments,
+    pilotWorkspaceSnapshot,
+    teacherActor,
+    {
+      id: "market-equilibrium-check",
+      courseId: pilotCourseModel.course.id,
+      title: "Market equilibrium check",
+      instructions:
+        "Answer two objective questions, then use the feedback to choose your next practice step.",
+      availability: { opensAt: null, dueAt: null, closesAt: null },
+      attemptPolicy: { maxAttempts: 2, resultRelease: "immediate" },
+      now: new Date(Date.parse(DEMO_NOW) + 11_000).toISOString(),
+    },
+  );
+  assessments = addBankQuestionToAssessment(
+    assessments,
+    bank,
+    pilotWorkspaceSnapshot,
+    teacherActor,
+    {
+      assessmentId: "market-equilibrium-check",
+      itemId: "market-equilibrium-check-item-1",
+      questionId: "bank-market-shortage",
+      reuseMode: "linked-version",
+      points: 2,
+      now: new Date(Date.parse(DEMO_NOW) + 12_000).toISOString(),
+    },
+  );
+  assessments = addBankQuestionToAssessment(
+    assessments,
+    bank,
+    pilotWorkspaceSnapshot,
+    teacherActor,
+    {
+      assessmentId: "market-equilibrium-check",
+      itemId: "market-equilibrium-check-item-2",
+      questionId: "bank-supply-right",
+      reuseMode: "copied-snapshot",
+      points: 1,
+      now: new Date(Date.parse(DEMO_NOW) + 13_000).toISOString(),
+    },
+  );
+  return publishAssessment(
+    assessments,
+    pilotWorkspaceSnapshot,
+    teacherActor,
+    "market-equilibrium-check",
+    new Date(Date.parse(DEMO_NOW) + 14_000).toISOString(),
+  );
+}
+
+const pilotAssessmentSnapshot = buildPilotAssessmentSnapshot(
+  pilotQuestionBankSnapshot,
+);
 
 function loadAppWorkspace(storage: Storage): WorkspaceSnapshot {
   const loaded = loadWorkspaceSnapshot(storage, {
@@ -2873,6 +3073,14 @@ export function App() {
   const [mediaSnapshot, setMediaSnapshot] = useState<MediaSnapshot>(() =>
     loadMediaSnapshot(window.localStorage, pilotMediaSnapshot),
   );
+  const [questionBankSnapshot, setQuestionBankSnapshot] =
+    useState<QuestionBankSnapshot>(() =>
+      loadQuestionBankSnapshot(window.localStorage, pilotQuestionBankSnapshot),
+    );
+  const [assessmentSnapshot, setAssessmentSnapshot] =
+    useState<AssessmentSnapshot>(() =>
+      loadAssessmentSnapshot(window.localStorage, pilotAssessmentSnapshot),
+    );
   const [selectedCourseId, setSelectedCourseId] = useState(
     pilotCourseModel.course.id,
   );
@@ -2901,6 +3109,12 @@ export function App() {
   useEffect(() => {
     saveMediaSnapshot(window.localStorage, mediaSnapshot);
   }, [mediaSnapshot]);
+  useEffect(() => {
+    saveQuestionBankSnapshot(window.localStorage, questionBankSnapshot);
+  }, [questionBankSnapshot]);
+  useEffect(() => {
+    saveAssessmentSnapshot(window.localStorage, assessmentSnapshot);
+  }, [assessmentSnapshot]);
   useEffect(() => {
     const onPopState = (event: PopStateEvent) => {
       const route = normalizeHistoryState(event.state);
@@ -3090,6 +3304,40 @@ export function App() {
         selectedCourseId,
       )
     : null;
+  const teacherQuestionBankProjection = teacherSelectedCatalogueCourse
+    ? projectQuestionBank(questionBankSnapshot, workspaceSnapshot, teacherActor)
+    : null;
+  const reviewerQuestionBankProjection = teacherSelectedCatalogueCourse
+    ? projectQuestionBank(questionBankSnapshot, workspaceSnapshot, ownerActor)
+    : null;
+  const teacherAssessmentProjection = teacherSelectedCatalogueCourse
+    ? projectTeacherAssessments(
+        assessmentSnapshot,
+        workspaceSnapshot,
+        teacherActor,
+        selectedCourseId,
+      )
+    : null;
+  const studentAssessmentProjection = studentSelectedCatalogueCourse
+    ? projectStudentAssessments(
+        assessmentSnapshot,
+        workspaceSnapshot,
+        studentActor,
+        selectedCourseId,
+        new Date().toISOString(),
+      )
+    : null;
+  const studentAttemptsByAssessment = Object.fromEntries(
+    (studentAssessmentProjection ?? []).map((assessment) => [
+      assessment.id,
+      projectStudentAssessmentAttempts(
+        assessmentSnapshot,
+        workspaceSnapshot,
+        studentActor,
+        assessment.id,
+      ),
+    ]),
+  );
   const completedItemIds = new Set(
     state.submitted ? ["welcome", "supply-shock-activity"] : ["welcome"],
   );
@@ -3548,6 +3796,322 @@ export function App() {
     }
   };
 
+  const assessmentMutationTime = () =>
+    new Date(
+      Math.max(
+        Date.now(),
+        Date.parse(questionBankSnapshot.audit.updatedAt),
+        Date.parse(assessmentSnapshot.audit.updatedAt),
+        Date.parse(workspaceSnapshot.workspace.audit.updatedAt),
+      ),
+    ).toISOString();
+
+  const saveQuestionBankItem = (
+    input: QuestionAuthoringInput,
+  ): MutationResult => {
+    try {
+      const now = assessmentMutationTime();
+      if (input.id) {
+        setQuestionBankSnapshot(
+          reviseQuestionDraft(
+            questionBankSnapshot,
+            workspaceSnapshot,
+            teacherActor,
+            {
+              questionId: input.id,
+              sharing: input.sharing,
+              metadata: input.metadata,
+              content: input.content,
+              feedback: input.feedback,
+              provenance: input.provenance,
+              now,
+            },
+          ),
+        );
+        return { error: null, id: input.id };
+      }
+      let sequence = questionBankSnapshot.questions.length + 1;
+      let id = `bank-question-${sequence}`;
+      while (
+        questionBankSnapshot.questions.some((question) => question.id === id)
+      ) {
+        sequence += 1;
+        id = `bank-question-${sequence}`;
+      }
+      setQuestionBankSnapshot(
+        createQuestion(questionBankSnapshot, workspaceSnapshot, teacherActor, {
+          id,
+          sharing: input.sharing,
+          metadata: input.metadata,
+          content: input.content,
+          feedback: input.feedback,
+          provenance: input.provenance,
+          now,
+        }),
+      );
+      return { error: null, id };
+    } catch (error) {
+      return {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Question could not be saved.",
+      };
+    }
+  };
+
+  const requestQuestionBankReview = (questionId: string): string | null => {
+    try {
+      setQuestionBankSnapshot(
+        requestQuestionReview(
+          questionBankSnapshot,
+          workspaceSnapshot,
+          teacherActor,
+          questionId,
+          assessmentMutationTime(),
+        ),
+      );
+      return null;
+    } catch (error) {
+      return error instanceof Error
+        ? error.message
+        : "Question could not enter review.";
+    }
+  };
+
+  const publishQuestionBankItem = (questionId: string): string | null => {
+    try {
+      setQuestionBankSnapshot(
+        publishQuestion(
+          questionBankSnapshot,
+          workspaceSnapshot,
+          ownerActor,
+          questionId,
+          assessmentMutationTime(),
+        ),
+      );
+      return null;
+    } catch (error) {
+      return error instanceof Error
+        ? error.message
+        : "Question could not be published.";
+    }
+  };
+
+  const createSelectedCourseAssessment = (
+    input: AssessmentAuthoringInput,
+  ): MutationResult => {
+    try {
+      let sequence = assessmentSnapshot.assessments.length + 1;
+      let id = `course-quiz-${sequence}`;
+      while (
+        assessmentSnapshot.assessments.some(
+          (assessment) => assessment.id === id,
+        )
+      ) {
+        sequence += 1;
+        id = `course-quiz-${sequence}`;
+      }
+      setAssessmentSnapshot(
+        createCourseAssessment(
+          assessmentSnapshot,
+          workspaceSnapshot,
+          teacherActor,
+          {
+            id,
+            courseId: selectedCourseId,
+            title: input.title,
+            instructions: input.instructions,
+            availability: input.availability,
+            attemptPolicy: {
+              maxAttempts: input.maxAttempts,
+              resultRelease: "immediate",
+            },
+            now: assessmentMutationTime(),
+          },
+        ),
+      );
+      return { error: null, id };
+    } catch (error) {
+      return {
+        error:
+          error instanceof Error ? error.message : "Quiz could not be created.",
+      };
+    }
+  };
+
+  const addQuestionToSelectedAssessment = (input: {
+    assessmentId: string;
+    questionId: string;
+    reuseMode: "linked-version" | "copied-snapshot";
+    points: number;
+  }): string | null => {
+    try {
+      const assessment = assessmentSnapshot.assessments.find(
+        (candidate) => candidate.id === input.assessmentId,
+      );
+      if (!assessment) return "Quiz draft does not exist.";
+      if (
+        assessment.draft.items.some(
+          (item) => item.sourceQuestionId === input.questionId,
+        )
+      ) {
+        return "That question is already in this quiz draft.";
+      }
+      let sequence = assessment.draft.items.length + 1;
+      let itemId = `${assessment.id}-item-${sequence}`;
+      while (assessment.draft.items.some((item) => item.id === itemId)) {
+        sequence += 1;
+        itemId = `${assessment.id}-item-${sequence}`;
+      }
+      setAssessmentSnapshot(
+        addBankQuestionToAssessment(
+          assessmentSnapshot,
+          questionBankSnapshot,
+          workspaceSnapshot,
+          teacherActor,
+          {
+            ...input,
+            itemId,
+            now: assessmentMutationTime(),
+          },
+        ),
+      );
+      return null;
+    } catch (error) {
+      return error instanceof Error
+        ? error.message
+        : "Question could not be added.";
+    }
+  };
+
+  const removeQuestionFromSelectedAssessment = (
+    assessmentId: string,
+    itemId: string,
+  ): string | null => {
+    try {
+      setAssessmentSnapshot(
+        removeAssessmentQuestion(
+          assessmentSnapshot,
+          workspaceSnapshot,
+          teacherActor,
+          assessmentId,
+          itemId,
+          assessmentMutationTime(),
+        ),
+      );
+      return null;
+    } catch (error) {
+      return error instanceof Error
+        ? error.message
+        : "Question could not be removed.";
+    }
+  };
+
+  const publishSelectedAssessment = (assessmentId: string): string | null => {
+    try {
+      const assessment = assessmentSnapshot.assessments.find(
+        (candidate) => candidate.id === assessmentId,
+      );
+      if (
+        assessment?.draft.items.some(
+          (item) => item.content.type === "short-answer",
+        )
+      ) {
+        return "This slice can release only multiple-choice and true/false questions.";
+      }
+      setAssessmentSnapshot(
+        publishAssessment(
+          assessmentSnapshot,
+          workspaceSnapshot,
+          teacherActor,
+          assessmentId,
+          assessmentMutationTime(),
+        ),
+      );
+      return null;
+    } catch (error) {
+      return error instanceof Error
+        ? error.message
+        : "Quiz could not be released.";
+    }
+  };
+
+  const startStudentAssessmentAttempt = (
+    assessmentId: string,
+  ): MutationResult => {
+    try {
+      let sequence = assessmentSnapshot.attempts.length + 1;
+      let id = `attempt-${sequence}`;
+      while (assessmentSnapshot.attempts.some((attempt) => attempt.id === id)) {
+        sequence += 1;
+        id = `attempt-${sequence}`;
+      }
+      setAssessmentSnapshot(
+        startAssessmentAttempt(
+          assessmentSnapshot,
+          workspaceSnapshot,
+          studentActor,
+          { id, assessmentId, now: assessmentMutationTime() },
+        ),
+      );
+      return { error: null, id };
+    } catch (error) {
+      return {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Attempt could not be started.",
+      };
+    }
+  };
+
+  const answerStudentAssessmentItem = (
+    attemptId: string,
+    itemId: string,
+    response: Parameters<typeof answerAssessmentItem>[3]["response"],
+  ): string | null => {
+    try {
+      setAssessmentSnapshot(
+        answerAssessmentItem(
+          assessmentSnapshot,
+          workspaceSnapshot,
+          studentActor,
+          {
+            attemptId,
+            itemId,
+            response,
+            now: assessmentMutationTime(),
+          },
+        ),
+      );
+      return null;
+    } catch (error) {
+      return error instanceof Error
+        ? error.message
+        : "Answer could not be saved.";
+    }
+  };
+
+  const submitStudentAssessmentAttempt = (attemptId: string): string | null => {
+    try {
+      setAssessmentSnapshot(
+        submitAssessmentAttempt(
+          assessmentSnapshot,
+          workspaceSnapshot,
+          studentActor,
+          attemptId,
+          assessmentMutationTime(),
+        ),
+      );
+      return null;
+    } catch (error) {
+      return error instanceof Error
+        ? error.message
+        : "Attempt could not be submitted.";
+    }
+  };
+
   return (
     <>
       <PreviewHeader screen={screen} setScreen={setScreen} />
@@ -3646,6 +4210,16 @@ export function App() {
               />
             ) : courseDestination === "files" && studentMediaProjection ? (
               <CourseFiles role="student" projection={studentMediaProjection} />
+            ) : courseDestination === "quizzes" &&
+              studentAssessmentProjection ? (
+              <CourseQuizzes
+                role="student"
+                assessments={studentAssessmentProjection}
+                attemptsByAssessment={studentAttemptsByAssessment}
+                onStartAttempt={startStudentAssessmentAttempt}
+                onAnswer={answerStudentAssessmentItem}
+                onSubmit={submitStudentAssessmentAttempt}
+              />
             ) : (
               <CourseDestinationPlaceholder
                 destination={
@@ -3712,6 +4286,23 @@ export function App() {
                 onSave={saveSelectedCourseMedia}
                 onPublish={publishSelectedCourseMedia}
                 onArchive={archiveSelectedCourseMedia}
+              />
+            ) : courseDestination === "quizzes" &&
+              teacherQuestionBankProjection &&
+              reviewerQuestionBankProjection &&
+              teacherAssessmentProjection ? (
+              <CourseQuizzes
+                role="teacher"
+                bank={teacherQuestionBankProjection}
+                reviewerBank={reviewerQuestionBankProjection}
+                assessments={teacherAssessmentProjection}
+                onSaveQuestion={saveQuestionBankItem}
+                onRequestQuestionReview={requestQuestionBankReview}
+                onPublishQuestion={publishQuestionBankItem}
+                onCreateAssessment={createSelectedCourseAssessment}
+                onAddQuestion={addQuestionToSelectedAssessment}
+                onRemoveQuestion={removeQuestionFromSelectedAssessment}
+                onPublishAssessment={publishSelectedAssessment}
               />
             ) : (
               <CourseDestinationPlaceholder
@@ -3807,6 +4398,16 @@ export function App() {
               />
             ) : courseDestination === "files" && studentMediaProjection ? (
               <CourseFiles role="student" projection={studentMediaProjection} />
+            ) : courseDestination === "quizzes" &&
+              studentAssessmentProjection ? (
+              <CourseQuizzes
+                role="student"
+                assessments={studentAssessmentProjection}
+                attemptsByAssessment={studentAttemptsByAssessment}
+                onStartAttempt={startStudentAssessmentAttempt}
+                onAnswer={answerStudentAssessmentItem}
+                onSubmit={submitStudentAssessmentAttempt}
+              />
             ) : (
               <CourseDestinationPlaceholder
                 destination={
@@ -3863,10 +4464,14 @@ export function App() {
             window.localStorage.removeItem(PEOPLE_STORAGE_KEY);
             window.localStorage.removeItem(ANNOUNCEMENTS_STORAGE_KEY);
             window.localStorage.removeItem(MEDIA_STORAGE_KEY);
+            window.localStorage.removeItem(QUESTION_BANK_STORAGE_KEY);
+            window.localStorage.removeItem(ASSESSMENT_STORAGE_KEY);
             setWorkspaceSnapshot(structuredClone(pilotWorkspaceSnapshot));
             setPeopleSnapshot(structuredClone(pilotPeopleSnapshot));
             setAnnouncementSnapshot(structuredClone(pilotAnnouncementSnapshot));
             setMediaSnapshot(structuredClone(pilotMediaSnapshot));
+            setQuestionBankSnapshot(structuredClone(pilotQuestionBankSnapshot));
+            setAssessmentSnapshot(structuredClone(pilotAssessmentSnapshot));
             setSelectedCourseId(pilotCourseModel.course.id);
             setComposerDrafts({});
             window.history.replaceState(

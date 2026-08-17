@@ -9,6 +9,7 @@ import {
   loadAssessmentSnapshot,
   projectTeacherAssessments,
   projectStudentAssessments,
+  projectStudentAssessmentAttempts,
   projectStudentAttempt,
   publishAssessment,
   removeAssessmentQuestion,
@@ -422,6 +423,20 @@ describe("organisation question bank", () => {
       setItem: () => undefined,
     };
     expect(loadQuestionBankSnapshot(storage, fallback)).toEqual(fallback);
+    const otherOrganizationBank = createQuestionBankSnapshot(
+      "school-2",
+      "school-2-owner",
+      now,
+    );
+    expect(
+      loadQuestionBankSnapshot(
+        {
+          getItem: () => JSON.stringify(otherOrganizationBank),
+          setItem: () => undefined,
+        },
+        fallback,
+      ),
+    ).toEqual(fallback);
   });
 });
 
@@ -627,6 +642,20 @@ describe("course assessment and attempt domain", () => {
         maxPoints: 3,
       }),
     );
+    expect(
+      projectStudentAssessmentAttempts(
+        assessments,
+        workspace,
+        student,
+        "quiz-1",
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        id: "attempt-1",
+        attemptNumber: 1,
+        state: "released",
+      }),
+    ]);
     const orphanedEvidence = structuredClone(assessments);
     orphanedEvidence.attempts[0].studentMembershipId = "membership-other";
     expect(() =>
@@ -803,6 +832,20 @@ describe("course assessment and attempt domain", () => {
             key === ASSESSMENT_STORAGE_KEY
               ? JSON.stringify({ ...fallback, attempts: "malformed" })
               : null,
+          setItem: () => undefined,
+        },
+        fallback,
+      ),
+    ).toEqual(fallback);
+    const otherOrganizationAssessments = createAssessmentSnapshot(
+      "school-2",
+      "school-2-owner",
+      now,
+    );
+    expect(
+      loadAssessmentSnapshot(
+        {
+          getItem: () => JSON.stringify(otherOrganizationAssessments),
           setItem: () => undefined,
         },
         fallback,
